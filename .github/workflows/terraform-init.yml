@@ -1,0 +1,1124 @@
+name: "☁ terraform-init"
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "The terraform environment name."
+        required: false
+        default: "cloud"
+        type: string
+      level:
+        description: "The level in the CAF hierarchy where to deploy the resources."
+        required: false
+        default: "level4"
+        type: string
+      azure_tenant_id:
+        description: "The tenant ID in which the subscription exists."
+        required: true
+        type: string
+      azure_ad_client_id:
+        description: "The client ID of the service principal used by terraform."
+        required: true
+        type: string
+      state_name:
+        description: "The blob name for the terraform state file. If empty, tfstate will be used. It must be tfstate or end with .tfstate."
+        required: false
+        default: "tfstate"
+        type: string
+      state_container:
+        description: "The storage account container name for the terraform state. If empty, tfstate will be used."
+        required: false
+        default: "tfstate"
+        type: string
+      state_location:
+        description: "The Azure location for the required terraform state resources."
+        required: false
+        default: "westeurope"
+        type: string
+      state_subscription_id:
+        description: "The subscription of the terraform state management resources."
+        required: true
+        type: string
+      target_subscription_id:
+        description: "The subscription ID in which to deploy the resources."
+        required: true
+        type: string
+      code_path:
+        description: "Path to terraform code (.tf files) to be executed."
+        required: false
+        default: "."
+        type: string
+      require_codeowners_file_for_apply:
+        description: "Require a CODEOWNERS file before allowing terraform apply."
+        required: false
+        default: false
+        type: boolean
+      require_code_owner_for_apply:
+        description: "Check that actor is code owner before allowing terraform apply."
+        required: false
+        default: true
+        type: boolean
+      require_code_owner_review_for_apply:
+        description: "Check that a code owner has reviewed and approved the pull request."
+        required: false
+        default: true
+        type: boolean
+      require_codeteams_file_for_apply:
+        description: "Require a CODETEAMS file before allowing terraform apply."
+        required: false
+        default: false
+        type: boolean
+      require_code_team_review_for_apply:
+        description: "Check that a code team member has reviewed and approved the pull request."
+        required: false
+        default: true
+        type: boolean
+      required_mergeable_state_for_apply:
+        description: "Check that the pull request mergable state is in one of the specified states."
+        required: false
+        default: '["clean","has_hooks","unstable"]'
+        type: string
+      log_severity:
+        description: "The log verbosity."
+        required: false
+        default: "ERROR"
+        type: string
+      date_time_language_format:
+        description: "The format to use for date and time in comments. Corresponds to the locales parameter of the Intl.DateTimeFormat() constructor."
+        required: false
+        default: "sv-SE"
+        type: string
+      time_zone:
+        description: "The time zone to use when converting UTC time, to show time in comments. See https://www.iana.org/time-zones."
+        required: false
+        default: "Europe/Oslo"
+        type: string
+      pull_request_head_ref:
+        description: "The head ref of the pull request."
+        required: true
+        type: string
+      pull_request_head_sha:
+        description: "The head SHA of the pull request."
+        required: true
+        type: string
+      pull_request_merged:
+        description: "Value is true if pull request is merged."
+        required: false
+        type: string
+      pull_request_mergeable:
+        description: "Value is true if pull request is mergeable."
+        required: false
+        type: string
+      pull_request_mergeable_state:
+        description: "The pull request is mergeable state."
+        required: false
+        type: string
+      comment_id:
+        description: "The comment id for this event that can be used to update the comment."
+        required: false
+        default: ""
+        type: string
+    secrets:
+      AZURE_AD_CLIENT_SECRET:
+        description: "The client secret of the service principal."
+        required: true
+    outputs:
+      signed_in_sp_name:
+        description: "The service principal name used to run terraform."
+        value: ${{ jobs.state.outputs.signed_in_sp_name }}
+      target_subscription_name:
+        description: "The subscription name in which to deploy the resources."
+        value: ${{ jobs.state.outputs.target_subscription_name }}
+      state_subscription_name:
+        description: "The subscription name in which the terraform state management resources exists."
+        value: ${{ jobs.state.outputs.state_subscription_name }}
+      state_resource_group_name:
+        description: "The resource group name in which the terraform state management resources exists."
+        value: ${{ jobs.state.outputs.state_resource_group_name }}
+      state_storage_account_name:
+        description: "The storage account name for terraform state management."
+        value: ${{ jobs.state.outputs.state_storage_account_name }}
+      state_key_vault_name:
+        description: "The key vault name in which the secrets are located for state management."
+        value: ${{ jobs.state.outputs.state_key_vault_name }}
+      state_backup_vault_name:
+        description: "The backup vault name that protects the blobs in the storage account for state management."
+        value: ${{ jobs.state.outputs.state_backup_vault_name }}
+      saved_plan_diff:
+        description: "A list of the terraform files that have changed since saved plan."
+        value: ${{ jobs.state.outputs.saved_plan_diff }}
+      deny_reason:
+        description: "Set if no terraform changes found in the commits since last saved plan."
+        value: ${{ jobs.state.outputs.deny_reason }}
+      terraform_command:
+        description: "The terraform command, plan, apply, force-unlock, graph, import, state or untaint."
+        value: ${{ jobs.state.outputs.terraform_command }}
+      terraform_arguments:
+        description: "The arguments to pass on to terraform command."
+        value: ${{ jobs.state.outputs.terraform_arguments }}
+      terraform_comment:
+        description: "The comment after terraform commands."
+        value: ${{ jobs.state.outputs.terraform_comment }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  state:
+    runs-on: ubuntu-latest
+    name: "☁ State"
+    permissions:
+      actions: write # for actions to get workflow details and upload artifacts
+      contents: read # for actions/checkout to fetch code
+      pull-requests: write # for updating issue comment
+    env:
+      COMMENT_BODY: ${{ github.event.comment.body }}
+      PLAN_CONTAINER: github-action-artifacts
+      PLAN_FOLDER: definition-plan_${{ github.event.repository.name }}_PR${{ github.event.pull_request.number || github.event.issue.number }}
+    outputs:
+      signed_in_sp_name: ${{ steps.login.outputs.signed_in_sp_name }}
+      target_subscription_name: ${{ steps.login.outputs.target_subscription_name }}
+      state_subscription_name: ${{ steps.login.outputs.state_subscription_name }}
+      state_resource_group_name: ${{ steps.az_state_rg.outputs.state_resource_group_name }}
+      state_storage_account_name: ${{ steps.az_state_sa.outputs.state_storage_account_name }}
+      state_key_vault_name: ${{ steps.az_state_kv.outputs.state_key_vault_name }}
+      state_backup_vault_name: ${{ steps.az_state_bv.outputs.state_backup_vault_name }}
+      saved_plan_diff: ${{ steps.saved_plan_diff.outputs.saved_plan_diff }}
+      deny_reason: ${{ steps.deny_plan.outputs.reason || steps.deny_apply.outputs.reason }}
+      terraform_command: ${{ steps.parse_command.outputs.command }}
+      terraform_arguments: ${{ steps.parse_command.outputs.arguments }}
+      terraform_comment: ${{ steps.parse_command.outputs.comment }}
+    steps:
+      - name: Verify permission (apply)
+        id: verify_permission
+        if: >
+          github.event_name == 'issue_comment' &&
+          contains(github.event.comment.body, '/apply')
+        uses: innofactororg/github-action-check-pull@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          require_codeowners_file: ${{ inputs.require_codeowners_file_for_apply }}
+          require_code_owner: ${{ inputs.require_code_owner_for_apply }}
+          require_code_owner_review: ${{ inputs.require_code_owner_review_for_apply }}
+          require_codeteams_file: ${{ inputs.require_codeteams_file_for_apply }}
+          require_code_team_review: ${{ inputs.require_code_team_review_for_apply }}
+          required_mergeable_state: ${{ inputs.required_mergeable_state_for_apply }}
+
+      - name: Log in to Azure
+        id: login
+        shell: bash
+        run: |
+          set -Eeu
+          start_path=$(readlink -f .)
+          mkdir -p ${start_path}/logs
+          error_file="${start_path}/logs/stderr.log"
+          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          error_handler() {
+            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            exit $1
+          }
+          if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
+            echo 'Azure CLI versions:'
+            az version -o json --only-show-errors 2>/dev/null || true
+          fi
+          az config set extension.use_dynamic_install=yes_without_prompt --only-show-errors 2>/dev/null || true
+          az config set core.display_survey_message=false --only-show-errors 2>/dev/null || true
+          sp_tenant_id='${{ inputs.azure_tenant_id }}'
+          sp_client_id='${{ inputs.azure_ad_client_id }}'
+          sp_client_secret='${{ secrets.AZURE_AD_CLIENT_SECRET }}'
+          az login --service-principal \
+            -t $sp_tenant_id \
+            -u $sp_client_id \
+            -p $sp_client_secret \
+            --only-show-errors 1> /dev/null 2> >(tee -a $error_file >&2)
+          signed_in_sp_name=$(az ad sp show \
+            --id $sp_client_id \
+            --query displayName \
+            --only-show-errors \
+            -o tsv 2>/dev/null || echo $sp_client_id)
+          echo "Logged in to Azure tenant ${sp_tenant_id} with ${signed_in_sp_name}"
+          query="where type =~ 'microsoft.keyvault/vaults' and subscriptionId == '${{ inputs.state_subscription_id }}' and ((tags['caf_tfstate'] =~ '${{ inputs.level }}' and tags['caf_environment'] =~ '${{ inputs.environment }}') or (tags['tfstate'] =~ '${{ inputs.level }}' and tags['environment'] =~ '${{ inputs.environment }}')) | project id"
+          if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
+            echo "Run query: ${query}"
+          fi
+          state_key_vault_id=$(az graph query \
+            -q "${query}" \
+            --first 1 \
+            --subscriptions '${{ inputs.state_subscription_id }}' \
+            --only-show-errors \
+            --query "data[0].id" \
+            -o tsv 2> >(tee -a $error_file >&2))
+          if [ -n "${state_key_vault_id}" ]; then
+            state_resource_group_name=$(cut -d/ -f5 <<<"${state_key_vault_id}")
+            state_key_vault_name="${state_key_vault_id##*/}"
+            echo "Found key vault ${state_key_vault_name}"
+            new_sp_client_id=$(az keyvault secret show \
+              --id https://${state_key_vault_name}.vault.azure.net/secrets/sp-client-id \
+              --only-show-errors \
+              --query "value" \
+              -o tsv 2>/dev/null || true)
+            if [[ -n "${new_sp_client_id}" && "${new_sp_client_id}" != "${sp_client_id}" ]]; then
+              echo "The input client id '${sp_client_id}' is different from key vault client id '${new_sp_client_id}'"
+              new_sp_client_secret=$(az keyvault secret show \
+                --id https://${state_key_vault_name}.vault.azure.net/secrets/sp-client-secret \
+                --only-show-errors \
+                --query "value" \
+                -o tsv 2>/dev/null || true)
+              if [ -n "${new_sp_client_secret}" ]; then
+                echo "::add-mask::${new_sp_client_secret}"
+                if [ -z "${sp_tenant_id}" ]; then
+                  sp_tenant_id=$(az keyvault secret show \
+                    --id https://${state_key_vault_name}.vault.azure.net/secrets/sp-tenant-id \
+                    --only-show-errors \
+                    --query "value" \
+                    -o tsv 2>/dev/null || true)
+                fi
+                echo "Use secrets from key vault ${state_key_vault_name} for Azure login"
+                az login --service-principal \
+                  -t $sp_tenant_id \
+                  -u $new_sp_client_id \
+                  -p $new_sp_client_secret \
+                  --only-show-errors 1> /dev/null 2> >(tee -a $error_file >&2)
+                signed_in_sp_name=$(az ad sp show \
+                  --id $new_sp_client_id \
+                  --query displayName \
+                  --only-show-errors \
+                  -o tsv 2>/dev/null || echo $new_sp_client_id)
+                echo "Logged in to Azure tenant ${sp_tenant_id} with ${signed_in_sp_name}"
+              else
+                echo "::error file=${{ github.action }}::Failed to get https://${state_key_vault_name}.vault.azure.net/secrets/sp-client-secret"
+                exit 1
+              fi
+            fi
+          else
+            state_resource_group_name=''
+            state_key_vault_id=''
+            state_key_vault_name=''
+            echo "Found no key vault with tags caf_tfstate='${{ inputs.level }}' and caf_environment='${{ inputs.environment }}'"
+          fi
+          signed_in_sp_id=$(az ad sp show \
+            --id $sp_client_id \
+            --query id \
+            --only-show-errors \
+            -o tsv 2>/dev/null || true)
+          state_subscription_name=$(az account subscription show \
+            --subscription-id '${{ inputs.state_subscription_id }}' \
+            --query displayName \
+            --only-show-errors \
+            -o tsv 2>/dev/null || echo '${{ inputs.state_subscription_id }}')
+          active_subscription=$(az account show --query id -o tsv 2>/dev/null || true)
+          if [ "${active_subscription}" != '${{ inputs.state_subscription_id }}' ]; then
+            az account set -s '${{ inputs.state_subscription_id }}' --only-show-errors 2> >(tee -a $error_file >&2)
+            echo "Changed active subscription to ${state_subscription_name} (${{ inputs.state_subscription_id }})"
+          fi
+          echo "state_resource_group_name=${state_resource_group_name}" >> $GITHUB_OUTPUT
+          echo "state_key_vault_id=${state_key_vault_id}" >> $GITHUB_OUTPUT
+          echo "state_key_vault_name=${state_key_vault_name}" >> $GITHUB_OUTPUT
+          echo "signed_in_sp_id=${signed_in_sp_id}" >> $GITHUB_OUTPUT
+          echo "signed_in_sp_name=${signed_in_sp_name}" >> $GITHUB_OUTPUT
+          echo "target_subscription_name=$(az account subscription show \
+            --subscription-id '${{ inputs.target_subscription_id }}' \
+            --query displayName \
+            --only-show-errors \
+            -o tsv 2>/dev/null || echo '${{ inputs.target_subscription_id }}')" >> $GITHUB_OUTPUT
+          echo "state_subscription_name=${state_subscription_name}" >> $GITHUB_OUTPUT
+
+      - name: Find storage account
+        id: find_az_state_sa
+        shell: bash
+        run: |
+          set -Eeu
+          start_path=$(readlink -f .)
+          mkdir -p ${start_path}/logs
+          error_file="${start_path}/logs/stderr.log"
+          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          error_handler() {
+            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            exit $1
+          }
+          query="where type =~ 'microsoft.storage/storageaccounts' and subscriptionId == '${{ inputs.state_subscription_id }}' and ((tags['caf_tfstate'] =~ '${{ inputs.level }}' and tags['caf_environment'] =~ '${{ inputs.environment }}') or (tags['tfstate'] =~ '${{ inputs.level }}' and tags['environment'] =~ '${{ inputs.environment }}')) | project id"
+          if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
+            echo "Run query: ${query}"
+          fi
+          state_storage_account_id=$(az graph query \
+            -q "${query}" \
+            --first 1 \
+            --subscriptions '${{ inputs.state_subscription_id }}' \
+            --only-show-errors \
+            --query "data[0].id" \
+            -o tsv 2> >(tee -a $error_file >&2))
+          if [ -n "${state_storage_account_id}" ]; then
+            state_resource_group_name=$(cut -d/ -f5 <<<"${state_storage_account_id}")
+            state_storage_account_name="${state_storage_account_id##*/}"
+            echo "Found storage account ${state_storage_account_name}"
+          else
+            state_resource_group_name=''
+            state_storage_account_name=''
+            state_storage_account_id=''
+            echo "Found no storage account with tags caf_tfstate='${{ inputs.level }}' and caf_environment='${{ inputs.environment }}'"
+          fi
+          echo "state_resource_group_name=${state_resource_group_name}" >> $GITHUB_OUTPUT
+          echo "state_storage_account_name=${state_storage_account_name}" >> $GITHUB_OUTPUT
+          echo "state_storage_account_id=${state_storage_account_id}" >> $GITHUB_OUTPUT
+
+      - name: Establish resource group
+        id: az_state_rg
+        shell: bash
+        run: |
+          set -Eeu
+          start_path=$(readlink -f .)
+          mkdir -p ${start_path}/logs
+          error_file="${start_path}/logs/stderr.log"
+          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          error_handler() {
+            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            exit $1
+          }
+          state_resource_group_name='${{ steps.find_az_state_sa.outputs.state_resource_group_name || steps.login.outputs.state_resource_group_name }}'
+          if [ -n "${state_resource_group_name}" ]; then
+            echo "Use resource group ${state_resource_group_name}"
+          else
+            typeset -l state_resource_group_name
+            prefix=$(echo '${{ steps.login.outputs.state_subscription_name }}' | head -c 8 | sed -E 's/[-_\.]+$//g')
+            suffix=$(echo '${{ inputs.environment }}' | head -c 6 | sed -E 's/[-_\.]+$//g')
+            state_resource_group_name="${prefix}-${suffix}"
+            rg_exists=$(az group exists \
+              --name "${state_resource_group_name}" \
+              --subscription '${{ inputs.state_subscription_id }}' \
+              --only-show-errors \
+              -o tsv 2>/dev/null || true)
+            if [ "${rg_exists}" == 'true' ]; then
+              echo "Found resource group ${state_resource_group_name}"
+            elif [[ '${{ github.event_name }}' == 'pull_request'* ]]; then
+              echo "Create resource group ${state_resource_group_name}"
+              az group create \
+                --name "${state_resource_group_name}" \
+                --location '${{ inputs.state_location }}' \
+                --only-show-errors \
+                -o none 2> >(tee -a $error_file >&2)
+              sleep 5
+              az group wait -g "${state_resource_group_name}" \
+                --exists \
+                --timeout 60 \
+                --subscription '${{ inputs.state_subscription_id }}' \
+                --only-show-errors 2> >(tee -a $error_file >&2)
+            else
+              echo "::error file=${{ github.action }}::Unable to find resource group ${resource_group_name}. It is required for terraform state and plan files." | tee -a $error_file
+              exit 1
+            fi
+          fi
+          echo "state_resource_group_name=${state_resource_group_name}" >> $GITHUB_OUTPUT
+          echo "rg_random=$(echo "${{ inputs.state_subscription_id }}-${state_resource_group_name}" | md5sum; echo;)" >> $GITHUB_OUTPUT
+
+      - name: Establish storage account
+        id: az_state_sa
+        shell: bash
+        run: |
+          set -Eeu
+          start_path=$(readlink -f .)
+          mkdir -p ${start_path}/logs
+          error_file="${start_path}/logs/stderr.log"
+          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          error_handler() {
+            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            exit $1
+          }
+          if [ -n '${{ steps.find_az_state_sa.outputs.state_storage_account_name }}' ]; then
+            state_storage_account_name='${{ steps.find_az_state_sa.outputs.state_storage_account_name }}'
+            state_storage_account_id='${{ steps.find_az_state_sa.outputs.state_storage_account_id }}'
+          else
+            typeset -l state_storage_account_name
+            state_storage_account_name=$(echo '${{ steps.az_state_rg.outputs.state_resource_group_name }}${{ inputs.level }}x${{ steps.az_state_rg.outputs.rg_random }}' | sed -E 's/[^ a-zA-Z0-9]//g' | head -c 24)
+          fi
+          if [[ '${{ github.event_name }}' == 'pull_request'* ]]; then
+            if [ -n '${{ steps.find_az_state_sa.outputs.state_storage_account_id }}' ]; then
+              state_storage_account_id='${{ steps.find_az_state_sa.outputs.state_storage_account_id }}'
+            else
+              query="where type =~ 'microsoft.storage/storageaccounts' and name == '${state_storage_account_name}' | project id"
+              if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
+                echo "Run query: ${query}"
+              fi
+              state_storage_account_id=$(az graph query \
+                -q "${query}" \
+                --first 1 \
+                --subscriptions '${{ inputs.state_subscription_id }}' \
+                --only-show-errors \
+                --query "data[0].id" \
+                -o tsv 2> >(tee -a $error_file >&2))
+            fi
+            if [ -n "${state_storage_account_id}" ]; then
+              echo "Found storage account ${state_storage_account_name}"
+            else
+              echo "Create storage account ${state_storage_account_name}"
+              state_storage_account_id=$(az storage account create \
+                -g '${{ steps.az_state_rg.outputs.state_resource_group_name }}' \
+                --name "${state_storage_account_name}" \
+                --location '${{ inputs.state_location }}' \
+                --tags caf_environment='${{ inputs.environment }}' caf_tfstate='${{ inputs.level }}' \
+                --allow-blob-public-access false \
+                --sku Standard_GRS \
+                --min-tls-version TLS1_2 \
+                --https-only true \
+                --only-show-errors \
+                --query id \
+                -o tsv 2> >(tee -a $error_file >&2))
+            fi
+            container_name=$(az storage container list \
+              --account-name "${state_storage_account_name}" \
+              --auth-mode login \
+              --only-show-errors \
+              --query "[?name=='${{ inputs.state_container }}'].[name]" \
+              -o tsv 2>/dev/null || true)
+            if [ -z "${container_name}" ]; then
+              echo "  ...Create container ${{ inputs.state_container }}"
+              az storage container create \
+                --name '${{ inputs.state_container }}' \
+                --account-name "${state_storage_account_name}" \
+                --auth-mode login \
+                --public-access off \
+                --only-show-errors \
+                -o none 2> >(tee -a $error_file >&2)
+            fi
+            if [ -n '${{ steps.login.outputs.signed_in_sp_id }}' ]; then
+              signed_in_assign_id=$(az role assignment list \
+                --assignee '${{ steps.login.outputs.signed_in_sp_id }}' \
+                --scope "${state_storage_account_id}" \
+                --role 'Storage Blob Data Contributor' \
+                --only-show-errors \
+                --query "[].[id]" \
+                -o tsv 2>/dev/null || true)
+              if [ -z "${signed_in_assign_id}" ]; then
+                echo "  ...Add role assignment 'Storage Blob Data Contributor' to '${{ steps.login.outputs.signed_in_sp_name }}' on '${state_storage_account_name}'"
+                az role assignment create \
+                  --role 'Storage Blob Data Contributor' \
+                  --assignee '${{ steps.login.outputs.signed_in_sp_id }}' \
+                  --scope "${state_storage_account_id}" \
+                  --only-show-errors \
+                  -o none 2> >(tee -a $error_file >&2)
+              fi
+            else
+              echo "::error file=${{ github.action }}::Unable to find service principal from client id ${{ inputs.azure_ad_client_id }}, please add it as 'Storage Blob Data Contributor' on storage account ${state_storage_account_name}."
+              exit 1
+            fi
+          else
+            echo "Use storage account ${state_storage_account_name}"
+          fi
+          echo "state_storage_account_name=${state_storage_account_name}" >> $GITHUB_OUTPUT
+          echo "state_storage_account_id=${state_storage_account_id}" >> $GITHUB_OUTPUT
+
+      - name: Establish key vault
+        id: az_state_kv
+        shell: bash
+        run: |
+          set -Eeu
+          start_path=$(readlink -f .)
+          mkdir -p ${start_path}/logs
+          error_file="${start_path}/logs/stderr.log"
+          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          error_handler() {
+            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            exit $1
+          }
+          if [ -n '${{ steps.login.outputs.state_key_vault_name }}' ]; then
+            state_key_vault_name='${{ steps.login.outputs.state_key_vault_name }}'
+          else
+            typeset -l state_key_vault_name
+            state_key_vault_name="$(echo '${{ steps.az_state_rg.outputs.state_resource_group_name }}${{ inputs.level }}x${{ steps.az_state_rg.outputs.rg_random }}' | sed -E 's/[^ a-zA-Z0-9\-]//g' | head -c 21 | sed -E 's/-+$//g')-kv"
+          fi
+          if [[ '${{ github.event_name }}' == 'pull_request'* ]]; then
+            if [ -n '${{ steps.login.outputs.state_key_vault_id }}' ]; then
+              state_key_vault_id='${{ steps.login.outputs.state_key_vault_id }}'
+            else
+              query="where type =~ 'microsoft.keyvault/vaults' and name == '${state_key_vault_name}' | project id"
+              if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
+                echo "Run query: ${query}"
+              fi
+              state_key_vault_id=$(az graph query \
+                -q "${query}" \
+                --first 1 \
+                --subscriptions '${{ inputs.state_subscription_id }}' \
+                --only-show-errors \
+                --query "data[0].id" \
+                -o tsv 2> >(tee -a $error_file >&2))
+            fi
+            if [ -n "${state_key_vault_id}" ]; then
+              echo "Found key vault ${state_key_vault_name}"
+            else
+              echo "Create key vault ${state_key_vault_name}"
+              state_key_vault_id=$(az keyvault create \
+                -g '${{ steps.az_state_rg.outputs.state_resource_group_name }}' \
+                --name "${state_key_vault_name}" \
+                --location '${{ inputs.state_location }}' \
+                --tags caf_environment='${{ inputs.environment }}' caf_tfstate='${{ inputs.level }}' \
+                --only-show-errors \
+                --query id \
+                -o tsv 2> >(tee -a $error_file >&2))
+            fi
+            secret_list=('tenant-id' 'subscription-id' 'sp-tenant-id' 'sp-client-id' 'sp-client-secret')
+            secret_value_list=('${{ inputs.azure_tenant_id }}' \
+              '${{ inputs.state_subscription_id }}' \
+              '${{ inputs.azure_tenant_id }}' \
+              '${{ inputs.azure_ad_client_id }}' \
+              '${{ secrets.AZURE_AD_CLIENT_SECRET }}')
+            for i in "${!secret_list[@]}"; do
+              secret_id=$(az keyvault secret list \
+                --vault-name "${state_key_vault_name}" \
+                --only-show-errors \
+                --query "[?name=='${secret_list[i]}'].[id]" \
+                -o tsv 2>/dev/null || true)
+              if [ -z "${secret_id}" ]; then
+                echo "  ...Create secret '${secret_list[i]}'"
+                az keyvault secret set \
+                  --name "${secret_list[i]}" \
+                  --vault-name "${state_key_vault_name}" \
+                  --value "${secret_value_list[i]}" \
+                  --only-show-errors \
+                  -o none 2> >(tee -a $error_file >&2)
+              fi
+            done
+          else
+            state_key_vault_id='${{ steps.login.outputs.state_key_vault_id }}'
+            echo "Use key vault ${state_key_vault_name}"
+          fi
+          echo "state_key_vault_name=${state_key_vault_name}" >> $GITHUB_OUTPUT
+          echo "state_key_vault_id=${state_key_vault_id}" >> $GITHUB_OUTPUT
+
+      - name: Establish backup vault
+        id: az_state_bv
+        shell: bash
+        run: |
+          set -Eeu
+          start_path=$(readlink -f .)
+          mkdir -p ${start_path}/logs
+          error_file="${start_path}/logs/stderr.log"
+          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          error_handler() {
+            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            exit $1
+          }
+          if [[ '${{ github.event_name }}' == 'pull_request'* ]]; then
+            query="where type =~ 'microsoft.dataprotection/backupvaults' and name == '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' | project id"
+            if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
+              echo "Run query: ${query}"
+            fi
+            bv_id=$(az graph query \
+              -q "${query}" \
+              --first 1 \
+              --subscriptions '${{ inputs.state_subscription_id }}' \
+              --only-show-errors \
+              --query "data[0].id" \
+              -o tsv 2> >(tee -a $error_file >&2))
+            if [ -n "${bv_id}" ]; then
+              echo "Found backup vault ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv"
+            else
+              echo "Create backup vault ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv"
+              bv_id=$(az dataprotection backup-vault create \
+                -g '${{ steps.az_state_rg.outputs.state_resource_group_name }}' \
+                --vault-name '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' \
+                --location '${{ inputs.state_location }}' \
+                --storage-settings datastore-type="VaultStore" type="GeoRedundant" \
+                --type 'SystemAssigned' \
+                --azure-monitor-alerts-for-job-failures 'Enabled' \
+                --only-show-errors \
+                --query id \
+                -o tsv 2> >(tee -a $error_file >&2))
+            fi
+            bv_principalId=$(az dataprotection backup-vault show \
+              -g '${{ steps.az_state_rg.outputs.state_resource_group_name }}' \
+              --vault-name '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' \
+              --only-show-errors \
+              --query identity.principalId \
+              -o tsv 2>/dev/null || true)
+            if [ -n "${bv_principalId}" ]; then
+              bv_assign_id=$(az role assignment list \
+                --assignee "${bv_principalId}" \
+                --scope '${{ steps.az_state_sa.outputs.state_storage_account_id }}' \
+                --role "Storage Account Backup Contributor" \
+                --only-show-errors \
+                --query "[].[id]" \
+                -o tsv 2>/dev/null || true)
+              if [ -z "${bv_assign_id}" ]; then
+                echo "  ...Add role assignment 'Storage Account Backup Contributor' to '${bv_principalId}' on '${{ steps.az_state_sa.outputs.state_storage_account_name }}'"
+                bv_principalName=$(az ad sp show \
+                  --id "${bv_principalId}" \
+                  --only-show-errors \
+                  --query displayName \
+                  -o tsv 2>/dev/null || true)
+                if [ -z "${bv_principalName}" ]; then
+                  sleep 10
+                  bv_principalName=$(az ad sp show \
+                    --id "${bv_principalId}" \
+                    --only-show-errors \
+                    --query displayName \
+                    -o tsv 2>/dev/null || true)
+                  if [ -z "${bv_principalName}" ]; then
+                    sleep 30
+                    bv_principalName=$(az ad sp show \
+                      --id "${bv_principalId}" \
+                      --only-show-errors \
+                      --query displayName \
+                      -o tsv 2>/dev/null || true)
+                    if [ -z "${bv_principalName}" ]; then
+                      sleep 60
+                    fi
+                  fi
+                fi
+                az role assignment create \
+                  --role "Storage Account Backup Contributor" \
+                  --assignee "${bv_principalId}" \
+                  --scope '${{ steps.az_state_sa.outputs.state_storage_account_id }}' \
+                  --only-show-errors \
+                  -o none 2> >(tee -a $error_file >&2)
+              fi
+            else
+              echo "::warning file=${{ github.action }}::Unable to find the backup vault identity, please add the backup vault as 'Storage Account Backup Contributor' on storage account ${{ steps.az_state_sa.outputs.state_storage_account_name }}."
+              exit
+            fi
+            bvp_id=$(az dataprotection backup-policy list \
+              -g '${{ steps.az_state_rg.outputs.state_resource_group_name }}' \
+              --vault-name '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' \
+              --only-show-errors \
+              --query "[?name=='BlobMonthly'].[id]" \
+              -o tsv 2>/dev/null || true)
+            if [ -z "${bvp_id}" ]; then
+              bvp_definition=$(az dataprotection backup-policy get-default-policy-template \
+                --datasource-type AzureBlob \
+                --only-show-errors \
+                -o json 2> >(tee -a $error_file >&2))
+              if [ -n "${bvp_definition}" ]; then
+                echo "  ...Create backup policy BlobMonthly"
+                bvp_id=$(az dataprotection backup-policy create \
+                  -g '${{ steps.az_state_rg.outputs.state_resource_group_name }}' \
+                  --vault-name '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' \
+                  --backup-policy-name "BlobMonthly" \
+                  --policy "${bvp_definition}" \
+                  --only-show-errors \
+                  --query id \
+                  -o tsv 2> >(tee -a $error_file >&2))
+              else
+                echo "::error file=${{ github.action }}::Unable to get default backup policy template for AzureBlob."
+                exit 1
+              fi
+            fi
+            if [ -n "${bvp_id}" ]; then
+              bvi_id=$(az dataprotection backup-instance list \
+                -g '${{ steps.az_state_rg.outputs.state_resource_group_name }}' \
+                --vault-name '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' \
+                --only-show-errors \
+                --query "[?properties.friendlyName=='${{ steps.az_state_sa.outputs.state_storage_account_name }}'].[id]" \
+                -o tsv 2>/dev/null || true)
+              if [ -z "${bvi_id}" ]; then
+                echo "  ...Create instance request for AzureBlobs in ${{ steps.az_state_sa.outputs.state_storage_account_name }}"
+                bvi_request=$(az dataprotection backup-instance initialize \
+                  -l '${{ inputs.state_location }}' \
+                  --tags caf_environment='${{ inputs.environment }}' caf_tfstate='${{ inputs.level }}' \
+                  --datasource-type "AzureBlob" \
+                  --policy-id "${bvp_id}" \
+                  --datasource-id '${{ steps.az_state_sa.outputs.state_storage_account_id }}' \
+                  --only-show-errors 2> >(tee -a $error_file >&2))
+                echo "  ...Create instance"
+                az dataprotection backup-instance create \
+                  -g '${{ steps.az_state_rg.outputs.state_resource_group_name }}' \
+                  --vault-name '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' \
+                  --backup-instance "${bvi_request}" \
+                  --only-show-errors \
+                  -o none 2> >(tee -a $error_file >&2)
+              fi
+            else
+              echo "::error file=${{ github.action }}::Unable to create a backup policy for AzureBlob, please manually configure ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv to protect ${{ steps.az_state_sa.outputs.state_storage_account_name }} and ensure that ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv is 'Storage Account Backup Contributor' on ${{ steps.az_state_sa.outputs.state_storage_account_name }}."
+              exit 1
+            fi
+          else
+            echo "Use backup vault ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv"
+          fi
+          echo 'state_backup_vault_name=${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' >> $GITHUB_OUTPUT
+
+      - name: Find saved plan
+        id: saved_plan
+        if: >
+          github.event_name == 'pull_request' || github.event_name == 'pull_request_target' || (
+            github.event_name == 'issue_comment' &&
+            contains(github.event.comment.body, '/apply')
+          )
+        shell: bash
+        run: |
+          set -Eeu
+          start_path=$(readlink -f .)
+          mkdir -p ${start_path}/logs
+          error_file="${start_path}/logs/stderr.log"
+          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          error_handler() {
+            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            exit $1
+          }
+          saved_plan_exist='false'
+          apply_exist='false'
+          saved_plan_sha=''
+          state_storage_account_name='${{ steps.az_state_sa.outputs.state_storage_account_name }}'
+          container_name=$(az storage container list \
+            --account-name "${state_storage_account_name}" \
+            --auth-mode login \
+            --only-show-errors \
+            --query "[?name=='${PLAN_CONTAINER}'].[name]" \
+            -o tsv 2>/dev/null || true)
+          if [ -z "${container_name}" ]; then
+            echo "No plan found, the container ${PLAN_CONTAINER} don't exist in ${state_storage_account_name}"
+          else
+            echo "Found container ${PLAN_CONTAINER} in ${state_storage_account_name}"
+            blob_list=('tfplan' 'tfplan.SHA')
+            for i in "${!blob_list[@]}"; do
+              blob_exists=$(az storage blob exists \
+                --name "${PLAN_FOLDER}/${blob_list[i]}" \
+                --container-name "${PLAN_CONTAINER}" \
+                --account-name "${state_storage_account_name}" \
+                --auth-mode login \
+                --only-show-errors \
+                --query "exists" \
+                -o tsv 2>/dev/null || true)
+              if [ "${blob_exists}" == 'true' ]; then
+                echo "Download https://${state_storage_account_name}.blob.core.windows.net/${PLAN_CONTAINER}/${PLAN_FOLDER}/${blob_list[i]}"
+                az storage blob download \
+                  --name "${PLAN_FOLDER}/${blob_list[i]}" \
+                  --container-name "${PLAN_CONTAINER}" \
+                  --file "${start_path}/${blob_list[i]}" \
+                  --account-name "${state_storage_account_name}" \
+                  --auth-mode login \
+                  --no-progress \
+                  --overwrite \
+                  --only-show-errors \
+                  -o none 2> >(tee -a $error_file >&2)
+              else
+                echo "Unable to find https://${state_storage_account_name}.blob.core.windows.net/${PLAN_CONTAINER}/${PLAN_FOLDER}/${blob_list[i]}"
+              fi
+            done
+            if [ -f "${start_path}/tfplan.SHA" ]; then
+              saved_plan_sha=$(cat ${start_path}/tfplan.SHA)
+              saved_plan_exist='true'
+              echo "Found saved plan SHA: ${saved_plan_sha}"
+              if [[ '${{ github.event_name }}' == 'issue_comment' && $COMMENT_BODY == *'/apply'* ]]; then
+                blob="tfapply.SHA"
+                blob_exists=$(az storage blob exists \
+                  --name "${PLAN_FOLDER}/${blob}" \
+                  --container-name "${PLAN_CONTAINER}" \
+                  --account-name "${state_storage_account_name}" \
+                  --auth-mode login \
+                  --only-show-errors \
+                  --query "exists" \
+                  -o tsv 2>/dev/null || true)
+                if [ "${blob_exists}" == 'true' ]; then
+                  echo "Download https://${state_storage_account_name}.blob.core.windows.net/${PLAN_CONTAINER}/${PLAN_FOLDER}/${blob}"
+                  az storage blob download \
+                    --name "${PLAN_FOLDER}/${blob}" \
+                    --container-name "${PLAN_CONTAINER}" \
+                    --file "${start_path}/${blob}" \
+                    --account-name "${state_storage_account_name}" \
+                    --auth-mode login \
+                    --no-progress \
+                    --overwrite \
+                    --only-show-errors \
+                    -o none 2> >(tee -a $error_file >&2)
+                  applySHA=$(cat ${start_path}/${blob})
+                  if [ -n "${applySHA}" ]; then
+                    if [ "${saved_plan_sha}" == "${applySHA}" ]; then
+                      echo "Found an existing terraform apply for the plan with SHA ${applySHA}. Update the plan to apply again."
+                      apply_exist='true'
+                    fi
+                  else
+                    echo "Unable to find apply SHA."
+                  fi
+                else
+                  echo "The blob ${blob} don't exist in ${state_storage_account_name}."
+                fi
+              fi
+            else
+              echo "Unable to find saved plan SHA."
+            fi
+          fi
+          echo "exist=${saved_plan_exist}" >> $GITHUB_OUTPUT
+          echo "sha=${saved_plan_sha}" >> $GITHUB_OUTPUT
+          echo "apply_exist=${apply_exist}" >> $GITHUB_OUTPUT
+
+      - name: Checkout head ref (src)
+        id: checkout_src
+        if: >
+          (
+            github.event_name == 'pull_request' ||
+            github.event_name == 'pull_request_target'
+          ) && steps.saved_plan.outputs.sha != ''
+        uses: actions/checkout@v3
+        with:
+          path: src
+          ref: ${{ inputs.pull_request_head_ref }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Compare saved plan with head
+        id: saved_plan_diff
+        if: >
+          (
+            github.event_name == 'pull_request' ||
+            github.event_name == 'pull_request_target'
+          ) && steps.saved_plan.outputs.sha != ''
+        shell: bash
+        run: |
+          set -Eeu
+          start_path=$(readlink -f .)
+          code_path=$(readlink -f src/${{ inputs.code_path }})
+          mkdir -p ${start_path}/logs
+          error_file="${start_path}/logs/stderr.log"
+          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          error_handler() {
+            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            exit $1
+          }
+          if [ '${{ steps.saved_plan.outputs.sha }}' == '${{ github.event.pull_request.head.sha }}' ]; then
+            echo "Plan has not changed; saved plan SHA is equal to head"
+          else
+            cd $code_path
+            echo "Check diff between SHA ${{ steps.saved_plan.outputs.sha }} and ${{ github.event.pull_request.head.sha }}"
+            diff_all=$(git diff --name-only --diff-filter=ACMRT ${{ steps.saved_plan.outputs.sha }} ${{ github.event.pull_request.head.sha }} 2> >(tee -a $error_file >&2))
+            if [ -z "${diff_all}" ]; then
+              echo "No files have changed for this commit."
+            else
+              diff_tf_exclude=$(echo "${diff_all}" | { grep -E '\.tf$|\.tfvars$' || test $? = 1; } | { grep -F -e examples/ -e docs/ || test $? = 1; } | xargs)
+              if [ -n "${diff_tf_exclude}" ]; then
+                echo "Found changes in unrelated files: ${diff_tf_exclude}"
+              fi
+              diff_tf_include=$(echo "${diff_all}" | { grep -E '\.tf$|\.tfvars$' || test $? = 1; } | { grep -Fv -e examples/ -e docs/ || test $? = 1; } | xargs)
+              if [ -z "${diff_tf_include}" ]; then
+                echo "Plan has not changed; found no changed terraform files"
+              else
+                message="Changed files: $(echo ${diff_tf_include} | sed -E 's/[[:space:]]/, /g')."
+                echo $message
+                echo "saved_plan_diff=${message}" >> $GITHUB_OUTPUT
+              fi
+            fi
+          fi
+
+      - name: Deny plan if nothing changed
+        id: deny_plan
+        if: >
+          (
+            github.event_name == 'pull_request' ||
+            github.event_name == 'pull_request_target'
+          ) && steps.saved_plan.outputs.exist == 'true' && steps.saved_plan_diff.outputs.saved_plan_diff == ''
+        shell: bash
+        run: |
+          message='The saved plan is up to date. No terraform changes found in the commits since last saved plan.'
+          echo $message
+          echo "reason=${message}" >> $GITHUB_OUTPUT
+
+      - name: Deny apply if plan missing or applied
+        id: deny_apply
+        if: >
+          github.event_name == 'issue_comment' &&
+          contains(github.event.comment.body, '/apply') && (
+            steps.saved_plan.outputs.exist != 'true' ||
+            steps.saved_plan.outputs.apply_exist == 'true'
+          )
+        shell: bash
+        run: |
+          if [ '${{ steps.saved_plan.outputs.exist }}' != 'true' ]; then
+            message='Apply is not allowed because a saved plan could not be found.'
+          else
+            message='Apply is not allowed because the saved plan has been applied.'
+          fi
+          echo $message
+          echo "reason=${message}" >> $GITHUB_OUTPUT
+
+      - name: Parse terraform command and arguments
+        id: parse_command
+        if: steps.deny_plan.outputs.reason == '' && steps.deny_apply.outputs.reason == ''
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          result-encoding: string
+          script: |
+            const COMMENT_BODY = process.env.COMMENT_BODY ?? '';
+            if (context.eventName == 'pull_request' || context.eventName == 'pull_request_target') {
+              core.info('Terraform command: plan');
+              core.setOutput('command', 'plan');
+            } else {
+              const match_from_hash_at_start = /^#[\s\S]*/gm
+              const allowed_commands_list = ['plan', 'apply', 'force-unlock', 'graph', 'import', 'state', 'untaint'];
+              const match_ansi_regex = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+              const match_allowed_at_start = /^\/\b(?:plan|apply|force-unlock|graph|import|state|untaint)\b/gi;
+              const match_command_after_lf = /[\n\r](\/\w+)/g;
+              const match_bad_arguments = /-\b(?:no-color|input=false|input=true|auto-approve|detailed-exitcode)\b/gi;
+              const match_space_tab = /[ \t]+/g;
+              const match_first_slash = /^\//g;
+              const match_from_first_space = / .*/g;
+              const body = COMMENT_BODY;
+              let line = '', command = '', comment = '', phrase = '';
+              let argument_list = [], command_list = [];
+              line = body.replace(match_from_hash_at_start, '');
+              comment = body.replace(line, '').trim();
+              line = line.replace(match_command_after_lf, '|$1').replace(/[\n\r]/g, '').replace(match_space_tab, ' ');
+              const phrase_list = line.split('|');
+              for (var i = 0; i < phrase_list.length; i++) {
+                command = phrase_list[i].trim().replace(match_first_slash, '').replace(match_from_first_space, '').toLowerCase().trim();
+                if (allowed_commands_list.indexOf(command) === -1) {
+                  core.notice(`Command ${i + 1}: /${command} -----> command not known, it will be ignored!`);
+                } else {
+                  core.info(`Command ${i + 1}: ${phrase_list[i]}`);
+                  phrase = phrase_list[i].trim().replace(match_allowed_at_start, '').replace(match_bad_arguments, '');
+                  phrase = phrase.replace(/-out=[:\/\\\w]*/gi, '').replace(match_ansi_regex, '').replace(/”/g, '"').trim();
+                  if (phrase.includes("'") && phrase.includes('"')) {
+                    const message = `The '/${command}' command has both single and double quotes in the arguments. This is not supported!`;
+                    core.exportVariable('WF_STEP_ERROR_MESSAGE', message);
+                    core.setFailed(message);
+                    return;
+                  } else if (phrase.includes("'")) {
+                    core.notice(`The '/${command}' command has single quotes in the arguments. This is not supported, replacing them with double quotes.`);
+                    phrase = phrase.replace(/'/g, '"');
+                  }
+                  command_list.push(command);
+                  argument_list.push(phrase);
+                }
+              }
+              core.setOutput('command', command_list.join('|'));
+              core.setOutput('arguments', argument_list.join('|'));
+              core.setOutput('comment', comment);
+            }
+
+      - name: Job cancelled
+        id: job_cancelled
+        if: cancelled()
+        shell: bash
+        run: echo "JOB_STATUS=cancelled" >> $GITHUB_ENV
+
+      - name: Job failed
+        id: job_failed
+        if: failure()
+        shell: bash
+        run: echo "JOB_STATUS=failed" >> $GITHUB_ENV
+
+      - name: Comment when done
+        id: comment_when_done
+        if: always()
+        uses: actions/github-script@v6
+        env:
+          VERIFY_PERMISSION_MESSAGE: ${{ steps.verify_permission.outputs.message }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const COMMENT_BODY = process.env.COMMENT_BODY ?? '';
+            const STATUS = process.env.JOB_STATUS ?? 'success';
+            const STEP_ERROR = process.env.WF_STEP_ERROR_MESSAGE ?? process.env.VERIFY_PERMISSION_MESSAGE;
+            const {PLAN_FOLDER} = process.env;
+            const {PLAN_CONTAINER} = process.env;
+            const storage_account = '${{ steps.az_state_sa.outputs.state_storage_account_name }}';
+            const run_url = `${context.serverUrl}/${{ github.repository }}/actions/runs/${context.runId}`;
+            const ansi_regex = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+            const details = `| Job | Commit | Actor | Environment | Level | Subscription | Plan |
+            | --- | --- | --- | --- | --- | --- | --- |
+            | [#${context.runNumber}](${run_url}) | ${{ inputs.pull_request_head_sha }} | @${context.actor} | ${{ inputs.environment }} | ${{ inputs.level }} | ${{ steps.login.outputs.target_subscription_name }} | [${PLAN_FOLDER}](https://${storage_account}.blob.core.windows.net/${PLAN_CONTAINER}/${PLAN_FOLDER}/tfplan) |`;
+            let body = '';
+            if (STATUS == 'failed') {
+              const fs = require('fs');
+              const path = require('node:path');
+              const error_file=path.join(process.cwd(), 'logs', 'stderr.log');
+              let std_error = '', std_error_time = '';
+              try {
+                if (fs.existsSync(error_file)) {
+                  const data = fs.readFileSync(error_file, 'utf8');
+                  const data_clean = data.replace(ansi_regex, '').trim().replace(/”/g, '"');
+                  std_error = data_clean.length > 65000 ? `${data_clean.toString().substring(0, 30000).trim()}
+                  ...
+                  ... lines removed because text is too long
+                  ...
+                  ${data_clean.toString().substring(data_clean.length - 10000).trim()}` : data_clean;
+                  std_error_time = fs.statSync(error_file).mtime.toLocaleTimeString('${{ inputs.date_time_language_format }}', {timeZone: '${{ inputs.time_zone }}'});
+                }
+              } catch (e) {
+                if (!e.message.includes('no such file or directory')) {
+                  core.warning(`Failed to read file ${error_file}: ${e}`);
+                }
+              }
+              body = `## Job failed ⛔\n\n${details}\n\n${STEP_ERROR}`;
+              if (std_error) {
+                std_error = std_error.replace(/(?![^\n]{1,110}$)([^\n]{1,110})\s/g, "$1\n");
+                body = `${body}\n\nThe job failed at ${std_error_time} with the following error:\n\n\`\`\`text\n${std_error}\n\`\`\``;
+              }
+            } else if (STATUS == 'cancelled') {
+              body = `## Job cancelled 🗙\n\n${details}`;
+            } else if ('${{ steps.deny_plan.outputs.reason }}${{ steps.deny_apply.outputs.reason }}' != '') {
+              body = `## Job denied 👎\n\n${details}\n\n${{ steps.deny_plan.outputs.reason }}${{ steps.deny_apply.outputs.reason }}`;
+            } else {
+              body = `## Job initialized ⌛\n\n${details}\n\nRunning the terraform job...`;
+            }
+            if (context.eventName == 'issue_comment') {
+              body = `${COMMENT_BODY}\n\n${body}`;
+            }
+            const comment_id = isNaN('${{ inputs.comment_id }}') ? 0 : +'${{ inputs.comment_id }}';
+            if (comment_id != 0) {
+              core.info(`Update comment ${comment_id} with text:`);
+              core.info(body);
+              try {
+                const response = await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment_id,
+                  body: body,
+                });
+                if (response.status != 200 || !response.data) {
+                  const message = `Failed to update comment ${comment_id}. Response: ${JSON.stringify(response)}`;
+                  core.setFailed(message);
+                }
+              } catch (e) {
+                const message = `Failed to update comment ${comment_id}: ${e}`;
+                core.setFailed(message);
+              }
+            } else {
+              core.notice('Could not update the comment after completing the Init job.');
+              core.info('Comment text:');
+              core.info(body);
+            }
+
+      - name: Upload logs
+        id: upload_logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: init_logs
+          path: logs/
+          if-no-files-found: ignore
+          retention-days: 0
+
+      - name: Dump github context
+        id: dump_github_context
+        if: >
+          failure() || (
+            success() &&
+            !contains(
+              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
+            )
+          )
+        env:
+          GH_CONTEXT: ${{ toJson(github) }}
+        run: echo "${GH_CONTEXT}"
+
+      - name: Dump steps context
+        id: dump_steps_context
+        if: >
+          failure() || (
+            success() &&
+            !contains(
+              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
+            )
+          )
+        env:
+          STEPS_CONTEXT: ${{ toJson(steps) }}
+        run: echo "${STEPS_CONTEXT}"
+
+      - name: Print variables and event
+        id: dump_env
+        if: >
+          failure() || (
+            success() &&
+            !contains(
+              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
+            )
+          )
+        uses: hmarr/debug-action@v2

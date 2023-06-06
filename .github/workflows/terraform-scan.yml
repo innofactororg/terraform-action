@@ -1,0 +1,166 @@
+name: "👀 terraform-scan"
+on:
+  workflow_call:
+    inputs:
+      log_severity:
+        description: "The log verbosity."
+        required: false
+        default: "ERROR"
+        type: string
+      pull_request_head_ref:
+        description: "The head ref of the pull request."
+        required: true
+        type: string
+      pull_request_head_sha:
+        description: "The head SHA of the pull request."
+        required: true
+        type: string
+      comment_id:
+        description: "The comment id for this event that can be used to update the comment."
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    name: "👀 Scan"
+    permissions:
+      actions: read # for actions to get workflow details
+      contents: read # for actions/checkout to fetch code
+      pull-requests: write # for updating issue comment
+      security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
+    env:
+      COMMENT_BODY: ${{ github.event.comment.body }}
+    steps:
+      - name: Checkout head ref
+        id: checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.pull_request_head_ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Generate tfsec sarif report
+        id: generate_sarif
+        uses: aquasecurity/tfsec-sarif-action@v0.1.4
+        with:
+          sarif_file: tfsec.sarif
+
+      - name: Check sarif report existence
+        id: check_file
+        uses: andstor/file-existence-action@v2
+        with:
+          files: tfsec.sarif
+
+      - name: Upload tfsec sarif report to job Artifacts
+        id: upload_artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: SARIF file
+          path: tfsec.sarif
+          retention-days: 5
+
+      - name: Upload tfsec sarif report to CodeQL analysis
+        id: upload_codeql
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: tfsec.sarif
+          category: terraform
+
+      - name: Job cancelled
+        id: job_cancelled
+        if: cancelled()
+        shell: bash
+        run: echo "JOB_STATUS=cancelled" >> $GITHUB_ENV
+
+      - name: Job failed
+        id: job_failed
+        if: failure()
+        shell: bash
+        run: echo "JOB_STATUS=failed" >> $GITHUB_ENV
+
+      - name: Comment when done
+        id: comment_when_done
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const COMMENT_BODY = process.env.COMMENT_BODY ?? '';
+            const STATUS = process.env.JOB_STATUS ?? 'success';
+            const run_url = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}';
+            const details = `| Job | Commit | Actor |
+            | --- | --- | --- | --- | --- | --- | --- |
+            | [#${{ github.run_number }}](${run_url}) | ${{ inputs.pull_request_head_sha }} | @${{ github.actor }} |`;
+            let body = '';
+            if (STATUS == 'failed') {
+              body = `## Job failed ⛔\n\n${details}`;
+            } else if (STATUS == 'cancelled') {
+              body = `## Job cancelled 🗙\n\n${details}`;
+            } else {
+              body = `## Job completed ✅\n\n${details}`;
+            }
+            if ('${{ github.event_name }}' == 'issue_comment') {
+              body = `${COMMENT_BODY}\n\n${body}`;
+            }
+            const comment_id = isNaN('${{ inputs.comment_id }}') ? 0 : +'${{ inputs.comment_id }}';
+            if (comment_id != 0) {
+              console.log(`Update comment ${comment_id} with text:`);
+              console.log(body);
+              try {
+                const response = await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment_id,
+                  body: body,
+                });
+                if (response.status != 200 || !response.data) {
+                  const message = `Failed to update comment ${comment_id}. Response: ${JSON.stringify(response)}`;
+                  core.setFailed(message);
+                }
+              } catch (e) {
+                const message = `Failed to update comment ${comment_id}: ${e}`;
+                core.setFailed(message);
+              }
+            } else {
+              console.log('Could not get a comment to update. Comment text:');
+              console.log(body);
+            }
+
+      - name: Dump github context
+        id: dump_github_context
+        if: >
+          failure() || (
+            success() &&
+            !contains(
+              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
+            )
+          )
+        env:
+          GH_CONTEXT: ${{ toJson(github) }}
+        run: echo "${GH_CONTEXT}"
+
+      - name: Dump steps context
+        id: dump_steps_context
+        if: >
+          failure() || (
+            success() &&
+            !contains(
+              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
+            )
+          )
+        env:
+          STEPS_CONTEXT: ${{ toJson(steps) }}
+        run: echo "${STEPS_CONTEXT}"
+
+      - name: Print variables and event
+        id: dump_env
+        if: >
+          failure() || (
+            success() &&
+            !contains(
+              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
+            )
+          )
+        uses: hmarr/debug-action@v2

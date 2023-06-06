@@ -1,0 +1,23 @@
+{
+  "editor.tabSize": 2,
+  "editor.tabCompletion": "on",
+  "editor.detectIndentation": false,
+  "editor.formatOnSave": true,
+  "editor.bracketPairColorization.enabled": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.encoding": "utf8",
+  "markdown.extension.toc.updateOnSave": false,
+  "[markdown]": {
+    "editor.defaultFormatter": "yzhang.markdown-all-in-one"
+  },
+  "workbench.editor.wrapTabs": true,
+  "workbench.editor.decorations.colors": true,
+  "workbench.editor.decorations.badges": true,
+  "workbench.colorCustomizations": {
+    "gitDecoration.addedResourceForeground": "#aaaa8c"
+  },
+  "workbench.editorAssociations": {
+    "*.drawio.png": "hediet.vscode-drawio"
+  }
+}

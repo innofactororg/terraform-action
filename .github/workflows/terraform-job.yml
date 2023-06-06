@@ -1,0 +1,1410 @@
+name: "⚙️ terraform-job"
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "The terraform environment name."
+        required: false
+        default: "cloud"
+        type: string
+      level:
+        description: "The level in the CAF hierarchy where to deploy the resources."
+        required: false
+        default: "level4"
+        type: string
+      azure_tenant_id:
+        description: "The tenant ID in which the subscription exists."
+        required: true
+        type: string
+      azure_ad_client_id:
+        description: "The client ID of the service principal used by terraform."
+        required: true
+        type: string
+      state_name:
+        description: "The blob name for the terraform state file. If empty, tfstate will be used. It must be tfstate or end with .tfstate."
+        required: false
+        default: "tfstate"
+        type: string
+      state_container:
+        description: "The storage account container name for the terraform state. If empty, tfstate will be used."
+        required: false
+        default: "tfstate"
+        type: string
+      state_location:
+        description: "The Azure location for the required terraform state resources."
+        required: false
+        default: "westeurope"
+        type: string
+      state_subscription_id:
+        description: "The subscription of the terraform state management resources."
+        required: true
+        type: string
+      target_subscription_id:
+        description: "The subscription ID in which to deploy the resources."
+        required: true
+        type: string
+      library_01_app_id:
+        description: "The App ID of a GitHub App with read access the repository specified in input variable library_01_repo."
+        required: false
+        default: ""
+        type: string
+      library_01_repo:
+        description: "The name of a repository with library files that is needed by terraform files."
+        required: false
+        default: ""
+        type: string
+      library_01_path:
+        description: "The path where the repository, specified in library_01_repo, will be checked out to."
+        required: false
+        default: ""
+        type: string
+      library_02_app_id:
+        description: "The App ID of a GitHub App with read access the repository specified in input variable library_02_repo."
+        required: false
+        default: ""
+        type: string
+      library_02_repo:
+        description: "The name of a repository with library files that is needed by terraform files."
+        required: false
+        default: ""
+        type: string
+      library_02_path:
+        description: "The path where the repository, specified in library_02_repo, will be checked out to."
+        required: false
+        default: ""
+        type: string
+      library_03_app_id:
+        description: "The App ID of a GitHub App with read access the repository specified in input variable library_03_repo."
+        required: false
+        default: ""
+        type: string
+      library_03_repo:
+        description: "The name of a repository with library files that is needed by terraform files."
+        required: false
+        default: ""
+        type: string
+      library_03_path:
+        description: "The path where the repository, specified in library_03_repo, will be checked out to."
+        required: false
+        default: ""
+        type: string
+      library_04_app_id:
+        description: "The App ID of a GitHub App with read access the repository specified in input variable library_04_repo."
+        required: false
+        default: ""
+        type: string
+      library_04_repo:
+        description: "The name of a repository with library files that is needed by terraform files."
+        required: false
+        default: ""
+        type: string
+      library_04_path:
+        description: "The path where the repository, specified in library_04_repo, will be checked out to."
+        required: false
+        default: ""
+        type: string
+      library_05_app_id:
+        description: "The App ID of a GitHub App with read access the repository specified in input variable library_05_repo."
+        required: false
+        default: ""
+        type: string
+      library_05_repo:
+        description: "The name of a repository with library files that is needed by terraform files."
+        required: false
+        default: ""
+        type: string
+      library_05_path:
+        description: "The path where the repository, specified in library_05_repo, will be checked out to."
+        required: false
+        default: ""
+        type: string
+      code_path:
+        description: "Path to terraform code (.tf files) to be executed."
+        required: false
+        default: "."
+        type: string
+      var_path:
+        description: "Path to the configuration files. All .tfvars files in the directory will be expanded."
+        required: false
+        default: "."
+        type: string
+      log_severity:
+        description: "The log verbosity."
+        required: false
+        default: "ERROR"
+        type: string
+      merge_method:
+        description: "The merge method to use after successful terraform apply. Can be one of: merge, squash, rebase or disable to turn off auto merge."
+        required: false
+        default: "squash"
+        type: string
+      keep_branch_after_merge:
+        description: "Prevent deleting the branch after merge."
+        required: false
+        default: false
+        type: boolean
+      date_time_language_format:
+        description: "The format to use for date and time in comments. Corresponds to the locales parameter of the Intl.DateTimeFormat() constructor."
+        required: false
+        default: "sv-SE"
+        type: string
+      time_zone:
+        description: "The time zone to use when converting UTC time, to show time in comments. See https://www.iana.org/time-zones."
+        required: false
+        default: "Europe/Oslo"
+        type: string
+      pull_request_base_ref:
+        description: "The base ref of the pull request."
+        required: true
+        type: string
+      pull_request_base_sha:
+        description: "The base SHA of the pull request."
+        required: true
+        type: string
+      pull_request_head_ref:
+        description: "The head ref of the pull request."
+        required: true
+        type: string
+      pull_request_head_sha:
+        description: "The head SHA of the pull request."
+        required: true
+        type: string
+      comment_id:
+        description: "The comment id for this event that can be used to update the comment."
+        required: false
+        default: ""
+        type: string
+      signed_in_sp_name:
+        description: "The service principal name used to run terraform."
+        required: true
+        type: string
+      target_subscription_name:
+        description: "The subscription name in which to deploy the resources."
+        required: true
+        type: string
+      state_subscription_name:
+        description: "The subscription name in which the terraform state management resources exists."
+        required: true
+        type: string
+      state_resource_group_name:
+        description: "The resource group name in which the terraform state management resources exists."
+        required: true
+        type: string
+      state_storage_account_name:
+        description: "The storage account name for terraform state management."
+        required: true
+        type: string
+      state_key_vault_name:
+        description: "The key vault name in which the secrets are located for state management."
+        required: true
+        type: string
+      state_backup_vault_name:
+        description: "The backup vault name that protects the blobs in the storage account for state management."
+        required: true
+        type: string
+      saved_plan_diff:
+        description: "A list of the terraform files that have changed since saved plan."
+        required: true
+        type: string
+      terraform_command:
+        description: "The terraform command, plan, apply, force-unlock, graph, import, state or untaint."
+        required: true
+        type: string
+      terraform_arguments:
+        description: "The arguments to pass on to terraform command."
+        required: false
+        type: string
+      terraform_comment:
+        description: "The comment after terraform commands."
+        required: false
+        type: string
+    secrets:
+      AZURE_AD_CLIENT_SECRET:
+        description: "The client secret of the service principal."
+        required: true
+      INFRACOST_API_KEY:
+        description: "The infrastructure cost API key for calculating cost impact of the terraform plan."
+        required: true
+      LIBRARY_01_PRIVATE_KEY:
+        description: "A private key from the GitHub App specified in library_01_app_id."
+        required: false
+      LIBRARY_02_PRIVATE_KEY:
+        description: "A private key from the GitHub App specified in library_02_app_id."
+        required: false
+      LIBRARY_03_PRIVATE_KEY:
+        description: "A private key from the GitHub App specified in library_03_app_id."
+        required: false
+      LIBRARY_04_PRIVATE_KEY:
+        description: "A private key from the GitHub App specified in library_04_app_id."
+        required: false
+      LIBRARY_05_PRIVATE_KEY:
+        description: "A private key from the GitHub App specified in library_05_app_id."
+        required: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  job:
+    runs-on: ubuntu-latest
+    name: "⚙️ Job"
+    permissions:
+      actions: write # for actions to get workflow details and upload artifacts
+      contents: write # for checkout and for auto merge
+      pull-requests: write # for updating issue comment
+    env:
+      COMMENT_BODY: ${{ github.event.comment.body }}
+      TERRAFORM_COMMENT: ${{ inputs.terraform_comment }}
+      PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+      PLAN_CONTAINER: github-action-artifacts
+      PLAN_FOLDER: definition-plan_${{ github.event.repository.name }}_PR${{ github.event.pull_request.number || github.event.issue.number }}
+    steps:
+      - name: Checkout head ref (src)
+        id: checkout_src
+        uses: actions/checkout@v3
+        with:
+          path: src
+          ref: ${{ inputs.pull_request_head_ref }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Get library 01 token
+        id: library_01
+        if: inputs.library_01_repo != '' && inputs.library_01_app_id != ''
+        uses: innofactororg/github-action-get-app-token@v1
+        with:
+          app_id: ${{ inputs.library_01_app_id }}
+          private_key: ${{ secrets.LIBRARY_01_PRIVATE_KEY }}
+          repository: ${{ inputs.library_01_repo }}
+          repositories: |-
+            ["${{ inputs.library_01_repo }}"]
+          permissions: |-
+            {"contents":"read"}
+
+      - name: Checkout library 01 (private)
+        id: checkout_library_01
+        if: inputs.library_01_repo != '' && steps.library_01.outputs.token != ''
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ inputs.library_01_repo }}
+          path: ${{ inputs.library_01_path }}
+          token: ${{ steps.library_01.outputs.token }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout library 01 (public)
+        id: checkout_library_01_pub
+        if: inputs.library_01_repo != '' && steps.library_01.outputs.token == ''
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ inputs.library_01_repo }}
+          path: ${{ inputs.library_01_path }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Get library 02 token
+        id: library_02
+        if: inputs.library_02_repo != '' && inputs.library_02_app_id != ''
+        uses: innofactororg/github-action-get-app-token@v1
+        with:
+          app_id: ${{ inputs.library_02_app_id }}
+          private_key: ${{ secrets.LIBRARY_02_PRIVATE_KEY }}
+          repository: ${{ inputs.library_02_repo }}
+          repositories: |-
+            ["${{ inputs.library_02_repo }}"]
+          permissions: |-
+            {"contents":"read"}
+
+      - name: Checkout library 02 (private)
+        id: checkout_library_02
+        if: inputs.library_02_repo != '' && steps.library_02.outputs.token != ''
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ inputs.library_02_repo }}
+          path: ${{ inputs.library_02_path }}
+          token: ${{ steps.library_02.outputs.token }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout library 02 (public)
+        id: checkout_library_02_pub
+        if: inputs.library_02_repo != '' && steps.library_02.outputs.token == ''
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ inputs.library_02_repo }}
+          path: ${{ inputs.library_02_path }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Get library 03 token
+        id: library_03
+        if: inputs.library_03_repo != '' && inputs.library_03_app_id != ''
+        uses: innofactororg/github-action-get-app-token@v1
+        with:
+          app_id: ${{ inputs.library_03_app_id }}
+          private_key: ${{ secrets.LIBRARY_03_PRIVATE_KEY }}
+          repository: ${{ inputs.library_03_repo }}
+          repositories: |-
+            ["${{ inputs.library_03_repo }}"]
+          permissions: |-
+            {"contents":"read"}
+
+      - name: Checkout library 03 (private)
+        id: checkout_library_03
+        if: inputs.library_03_repo != '' && steps.library_03.outputs.token != ''
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ inputs.library_03_repo }}
+          path: ${{ inputs.library_03_path }}
+          token: ${{ steps.library_03.outputs.token }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout library 03 (public)
+        id: checkout_library_03_pub
+        if: inputs.library_03_repo != '' && steps.library_03.outputs.token == ''
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ inputs.library_03_repo }}
+          path: ${{ inputs.library_03_path }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Get library 04 token
+        id: library_04
+        if: inputs.library_04_repo != '' && inputs.library_04_app_id != ''
+        uses: innofactororg/github-action-get-app-token@v1
+        with:
+          app_id: ${{ inputs.library_04_app_id }}
+          private_key: ${{ secrets.LIBRARY_04_PRIVATE_KEY }}
+          repository: ${{ inputs.library_04_repo }}
+          repositories: |-
+            ["${{ inputs.library_04_repo }}"]
+          permissions: |-
+            {"contents":"read"}
+
+      - name: Checkout library 04 (private)
+        id: checkout_library_04
+        if: inputs.library_04_repo != '' && steps.library_04.outputs.token != ''
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ inputs.library_04_repo }}
+          path: ${{ inputs.library_04_path }}
+          token: ${{ steps.library_04.outputs.token }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout library 04 (public)
+        id: checkout_library_04_pub
+        if: inputs.library_04_repo != '' && steps.library_04.outputs.token == ''
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ inputs.library_04_repo }}
+          path: ${{ inputs.library_04_path }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Get library 05 token
+        id: library_05
+        if: inputs.library_05_repo != '' && inputs.library_05_app_id != ''
+        uses: innofactororg/github-action-get-app-token@v1
+        with:
+          app_id: ${{ inputs.library_05_app_id }}
+          private_key: ${{ secrets.LIBRARY_05_PRIVATE_KEY }}
+          repository: ${{ inputs.library_05_repo }}
+          repositories: |-
+            ["${{ inputs.library_05_repo }}"]
+          permissions: |-
+            {"contents":"read"}
+
+      - name: Checkout library 05 (private)
+        id: checkout_library_05
+        if: inputs.library_05_repo != '' && steps.library_05.outputs.token != ''
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ inputs.library_05_repo }}
+          path: ${{ inputs.library_05_path }}
+          token: ${{ steps.library_05.outputs.token }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout library 05 (public)
+        id: checkout_library_05_pub
+        if: inputs.library_05_repo != '' && steps.library_05.outputs.token == ''
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ inputs.library_05_repo }}
+          path: ${{ inputs.library_05_path }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Log in to Azure
+        id: login
+        shell: bash
+        run: |
+          set -Eeu
+          start_path=$(readlink -f .)
+          mkdir -p ${start_path}/logs
+          error_file="${start_path}/logs/stderr.log"
+          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          error_handler() {
+            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            exit $1
+          }
+          az config set extension.use_dynamic_install=yes_without_prompt --only-show-errors 2>/dev/null || true
+          az config set core.display_survey_message=false --only-show-errors 2>/dev/null || true
+          sp_tenant_id='${{ inputs.azure_tenant_id }}'
+          sp_client_id='${{ inputs.azure_ad_client_id }}'
+          sp_client_secret='${{ secrets.AZURE_AD_CLIENT_SECRET }}'
+          signed_in_sp_name='${{ inputs.signed_in_sp_name }}'
+          az login --service-principal \
+            -t $sp_tenant_id \
+            -u $sp_client_id \
+            -p $sp_client_secret \
+            --only-show-errors 1> /dev/null 2> >(tee -a $error_file >&2)
+          echo "Logged in to Azure tenant ${sp_tenant_id} with ${signed_in_sp_name}"
+          state_key_vault_name='${{ inputs.state_key_vault_name }}'
+          if [ -n "${state_key_vault_name}" ]; then
+            new_sp_client_id=$(az keyvault secret show \
+              --id https://${state_key_vault_name}.vault.azure.net/secrets/sp-client-id \
+              --only-show-errors \
+              --query "value" \
+              -o tsv 2>/dev/null || true)
+            if [[ -n "${new_sp_client_id}" && "${new_sp_client_id}" != "${sp_client_id}" ]]; then
+              echo "The input client id '${sp_client_id}' is different from key vault client id '${new_sp_client_id}'"
+              new_sp_client_secret=$(az keyvault secret show \
+                --id https://${state_key_vault_name}.vault.azure.net/secrets/sp-client-secret \
+                --only-show-errors \
+                --query "value" \
+                -o tsv 2>/dev/null || true)
+              if [ -n "${new_sp_client_secret}" ]; then
+                echo "::add-mask::${new_sp_client_secret}"
+                if [ -z "${sp_tenant_id}" ]; then
+                  sp_tenant_id=$(az keyvault secret show \
+                    --id https://${state_key_vault_name}.vault.azure.net/secrets/sp-tenant-id \
+                    --only-show-errors \
+                    --query "value" \
+                    -o tsv 2>/dev/null || true)
+                fi
+                echo "Use secrets from key vault ${state_key_vault_name} for Azure login"
+                az login --service-principal \
+                  -t $sp_tenant_id \
+                  -u $new_sp_client_id \
+                  -p $new_sp_client_secret \
+                  --only-show-errors 1> /dev/null 2> >(tee -a $error_file >&2)
+                signed_in_sp_name=$(az ad sp show \
+                  --id $new_sp_client_id \
+                  --query displayName \
+                  --only-show-errors \
+                  -o tsv 2>/dev/null || echo $new_sp_client_id)
+                echo "Logged in to Azure tenant ${sp_tenant_id} with ${signed_in_sp_name}"
+              else
+                echo "::error file=${{ github.action }}::Failed to get https://${state_key_vault_name}.vault.azure.net/secrets/sp-client-secret"
+                exit 1
+              fi
+            fi
+          fi
+          active_subscription=$(az account show --query id -o tsv 2>/dev/null || true)
+          if [ "${active_subscription}" != '${{ inputs.state_subscription_id }}' ]; then
+            az account set -s '${{ inputs.state_subscription_id }}' --only-show-errors 2> >(tee -a $error_file >&2)
+            echo 'Changed active subscription to ${{ inputs.state_subscription_name }} (${{ inputs.state_subscription_id }})'
+          fi
+          echo "ARM_TENANT_ID=${sp_tenant_id}" >> $GITHUB_ENV
+          echo "ARM_CLIENT_ID=${sp_client_id}" >> $GITHUB_ENV
+          echo "ARM_CLIENT_SECRET=${sp_client_secret}" >> $GITHUB_ENV
+
+      - name: Download state files
+        id: download_state
+        if: >
+          contains(inputs.terraform_command, 'apply') || (
+            contains(inputs.terraform_command, 'graph') &&
+            contains(inputs.terraform_arguments, '-type=apply')
+          )
+        shell: bash
+        run: |
+          set -Eeu
+          start_path=$(readlink -f .)
+          code_path=$(readlink -f src/${{ inputs.code_path }})
+          mkdir -p ${start_path}/logs
+          error_file="${start_path}/logs/stderr.log"
+          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          error_handler() {
+            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            exit $1
+          }
+          state_storage_account_name='${{ inputs.state_storage_account_name }}'
+          blob_list=('tfplan' 'tfplan.SHA' '.terraform.lock.hcl')
+          path_list=("${start_path}" "${start_path}" "${code_path}")
+          for i in "${!blob_list[@]}"; do
+            blob_exists=$(az storage blob exists \
+              --name "${PLAN_FOLDER}/${blob_list[i]}" \
+              --container-name "${PLAN_CONTAINER}" \
+              --account-name "${state_storage_account_name}" \
+              --auth-mode login \
+              --only-show-errors \
+              --query "exists" \
+              -o tsv 2>/dev/null || true)
+            if [ "${blob_exists}" == 'true' ]; then
+              echo "Download https://${state_storage_account_name}.blob.core.windows.net/${PLAN_CONTAINER}/${PLAN_FOLDER}/${blob_list[i]}"
+              az storage blob download \
+                --name "${PLAN_FOLDER}/${blob_list[i]}" \
+                --container-name "${PLAN_CONTAINER}" \
+                --file "${path_list[i]}/${blob_list[i]}" \
+                --account-name "${state_storage_account_name}" \
+                --auth-mode login \
+                --no-progress \
+                --overwrite \
+                --only-show-errors \
+                -o none 2> >(tee -a $error_file >&2)
+            else
+              echo "::error file=${{ github.action }}::Unable to find https://${state_storage_account_name}.blob.core.windows.net/${PLAN_CONTAINER}/${PLAN_FOLDER}/${blob_list[i]}" | tee -a $error_file
+              exit 1
+            fi
+          done
+
+      - name: Get terraform state
+        id: get_terraform_state
+        shell: bash
+        run: |
+          set -Eeu
+          start_path=$(readlink -f .)
+          mkdir -p ${start_path}/logs
+          error_file="${start_path}/logs/stderr.log"
+          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          error_handler() {
+            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            exit $1
+          }
+          state_storage_account_name='${{ inputs.state_storage_account_name }}'
+          blob='${{ inputs.state_name }}'
+          blob_exists=$(az storage blob exists \
+            --name "${blob}" \
+            --container-name '${{ inputs.state_container }}' \
+            --account-name "${state_storage_account_name}" \
+            --auth-mode login \
+            --only-show-errors \
+            --query "exists" \
+            -o tsv 2>/dev/null || true)
+          if [ "${blob_exists}" == 'true' ]; then
+            echo "Download https://${state_storage_account_name}.blob.core.windows.net/${{ inputs.state_container }}/${blob}"
+            az storage blob download \
+              --name "${blob}" \
+              --container-name '${{ inputs.state_container }}' \
+              --file "${start_path}/logs/${blob}.before" \
+              --account-name "${state_storage_account_name}" \
+              --auth-mode login \
+              --no-progress \
+              --overwrite \
+              --only-show-errors \
+              -o none 2> >(tee -a $error_file >&2)
+            serial=$(cat ${start_path}/logs/${blob}.before | jq -r .serial)
+            echo "State file has serial ${serial}"
+            echo "serial=${serial}" >> $GITHUB_OUTPUT
+          else
+            echo "Unable to find https://${state_storage_account_name}.blob.core.windows.net/${{ inputs.state_container }}/${blob}"
+            echo "serial=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Terraform
+        # The output file for plan is modified using sed: all lines that begin with one
+        # or more spaces followed by a `+` or `-` is modified so the `+` and `-`
+        # end up at the start of the line followed by the number of matched spaces
+        id: terraform
+        shell: bash
+        run: |
+          set -Eeu
+          start_path=$(readlink -f .)
+          code_path=$(readlink -f src/${{ inputs.code_path }})
+          mkdir -p ${start_path}/logs
+          error_file="${start_path}/logs/stderr.log"
+          debug_file="${start_path}/logs/tf_debug.log"
+          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          error_handler() {
+            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            exit $1
+          }
+          terraform_version=$(terraform version -json | jq -r '.terraform_version')
+          account=$(az account show --only-show-errors -o json 2> >(tee -a $error_file >&2))
+          active_subscription_id=$(echo ${account} | jq -r .id)
+          if [ "${active_subscription_id}" != '${{ inputs.target_subscription_id }}' ]; then
+            az account set -s '${{ inputs.target_subscription_id }}' --only-show-errors 2> >(tee -a $error_file >&2)
+            echo "Changed active subscription to ${{ inputs.target_subscription_name }} (${{ inputs.target_subscription_id }})"
+            account=$(az account show --only-show-errors -o json 2> >(tee -a $error_file >&2))
+          fi
+          export ARM_SUBSCRIPTION_ID="${{ inputs.target_subscription_id }}"
+          echo "Target subscription:"
+          echo ${account} | jq -r
+          export TF_LOG='${{ inputs.log_severity }}'
+          export TF_LOG_PATH=$debug_file
+          export TF_VAR_environment='${{ inputs.environment }}'
+          export TF_VAR_level='${{ inputs.level }}'
+          export TF_VAR_workspace='${{ inputs.state_container }}'
+          export TF_VAR_tf_name='${{ inputs.state_name }}'
+          export TF_VAR_tfstate_key='${{ inputs.state_name }}'
+          export TF_VAR_tfstate_container_name='${{ inputs.state_container }}'
+          export TF_VAR_tfstate_storage_account_name='${{ inputs.state_storage_account_name }}'
+          export TF_VAR_tfstate_resource_group_name='${{ inputs.state_resource_group_name }}'
+          export TF_VAR_tfstate_subscription_id='${{ inputs.state_subscription_id }}'
+          export TF_VAR_tenant_id="${ARM_TENANT_ID}"
+          export TF_IN_AUTOMATION='true'
+          echo "Terraform version ${terraform_version}"
+          cd $code_path
+          backend_azurerm=$(find $code_path -maxdepth 1 -type f -name '*.tf' -exec grep -l -m 1 '^[^#]*backend "azurerm" {' {} \+ || true)
+          if [ -n "${backend_azurerm}" ]; then
+            echo "::warning file=${{ github.action }}::Found azurerm backend in ${backend_azurerm}. It will be ignored. This workflow will set backend config when running terraform init."
+          else
+            printf 'terraform {\n  backend "azurerm" {\n  }\n}' > $code_path/backend.azurerm.tf
+          fi
+          echo 'Running terraform init with...'
+          echo '  -no-color -upgrade -reconfigure -backend=true'
+          echo '  -backend-config storage_account_name=${{ inputs.state_storage_account_name }}'
+          echo '  -backend-config resource_group_name=${{ inputs.state_resource_group_name }}'
+          echo '  -backend-config container_name=${{ inputs.state_container }}'
+          echo '  -backend-config subscription_id=${{ inputs.state_subscription_id }}'
+          echo '  -backend-config key=${{ inputs.state_name }}'
+          echo '>==============>==============>==============>==============>'
+          terraform init \
+            -no-color \
+            -upgrade \
+            -reconfigure \
+            -backend=true \
+            -backend-config storage_account_name=${{ inputs.state_storage_account_name }} \
+            -backend-config resource_group_name=${{ inputs.state_resource_group_name }} \
+            -backend-config container_name=${{ inputs.state_container }} \
+            -backend-config subscription_id=${{ inputs.state_subscription_id }} \
+            -backend-config key=${{ inputs.state_name }} | grep -P '^- (?=Downloading|Using|Finding|Installing)|^[^-]' 2> >(tee -a $error_file >&2)
+          echo '<==============<==============<==============<==============<'
+          readarray -td '|' command_list <<< '${{ inputs.terraform_command }}'
+          readarray -td '|' arguments_list <<< '${{ inputs.terraform_arguments }}'
+          typeset -l tf_output_file
+          typeset -l tf_error_file
+          for i in "${!command_list[@]}"; do
+            command=$(echo "${command_list[i]}" | xargs)
+            passed_arguments=$(echo "${arguments_list[i]}")
+            arguments=''
+            if [ -n "${command}" ]; then
+              tf_output_file="${start_path}/logs/terraform${i}_${command}.output"
+              tf_error_file="${start_path}/logs/terraform${i}_${command}.error"
+              arg_vars=''
+              if [[ "${command}" =~ (plan|import) ]]; then
+                var_path=$(readlink -f ${{ inputs.var_path }})
+                if [ ! -d "${var_path}" ]; then
+                  echo "::error file=${{ github.action }}::Folder ${var_path} does not exist."
+                  exit 1
+                fi
+                for filename in "${var_path}"/*.tfvars; do
+                  if [ "${filename}" != "${var_path}/*.tfvars" ]; then
+                    arg_vars+="-var-file ${filename} "
+                  fi
+                done
+                for filename in "${var_path}"/*.tfvars.json; do
+                  if [ "${filename}" != "${var_path}/*.tfvars.json" ]; then
+                    arg_vars+="-var-file ${filename} "
+                  fi
+                done
+                if [[ -z "${arg_vars}" ]]; then
+                  echo '::error file=${{ github.action }}::Folder ${{ inputs.var_path }} does not have any tfvars files.'
+                  exit 1
+                fi
+              fi
+              case "${command}" in
+                'plan')
+                  arguments="-refresh=true -lock=false -no-color -input=false ${passed_arguments} ${arg_vars} -out=${start_path}/tfplan"
+                  ;;
+                'apply')
+                  arguments="-no-color -auto-approve -input=false ${start_path}/tfplan"
+                  ;;
+                'force-unlock')
+                  if [ -n "${passed_arguments}" ]; then
+                    elements=(${passed_arguments})
+                    if [ ${#elements[@]} -ne 1 ]; then
+                      echo "::error file=${{ github.action }}::The force-unlock command expects one argument LOCK_ID. Arguments received: ${passed_arguments}" | tee -a $tf_error_file
+                      exit 1
+                    else
+                      arguments="-force ${passed_arguments}"
+                    fi
+                  else
+                    echo "::error file=${{ github.action }}::No arguments received. The force-unlock command expects one argument LOCK_ID." | tee -a $tf_error_file
+                    exit 1
+                  fi
+                  ;;
+                'graph')
+                  if [[ "${passed_arguments}" == *'-type=apply'* && -f "${start_path}/tfplan" ]]; then
+                    arguments="${passed_arguments} -plan=${start_path}/tfplan"
+                  else
+                    arguments="${passed_arguments}"
+                  fi
+                  ;;
+                'import')
+                  if [ -n "${passed_arguments}" ]; then
+                    elements=(${passed_arguments})
+                    if [ ${#elements[@]} -ne 2 ]; then
+                      echo "::error file=${{ github.action }}::The import command expects two arguments ADDR ID. Arguments received: ${passed_arguments}" | tee -a $tf_error_file
+                      exit 1
+                    else
+                      arguments="-no-color ${arg_vars} ${passed_arguments}"
+                    fi
+                  else
+                    echo "::error file=${{ github.action }}::No arguments received. The import command expects two arguments ADDR ID." | tee -a $tf_error_file
+                    exit 1
+                  fi
+                  ;;
+                'state')
+                  if [ -n "${passed_arguments}" ]; then
+                    elements=(${passed_arguments})
+                    sub_command=${elements[0]}
+                    case "${sub_command}" in
+                      'list')
+                        arguments="${passed_arguments}"
+                        ;;
+                      'mv')
+                        if [ ${#elements[@]} -lt 3 ]; then
+                          echo "::error file=${{ github.action }}::The state mv command expects two arguments SOURCE DESTINATION. Arguments received: ${passed_arguments}" | tee -a $tf_error_file
+                          exit 1
+                        else
+                          arguments="${passed_arguments}"
+                        fi
+                        ;;
+                      'rm')
+                        if [ ${#elements[@]} -lt 2 ]; then
+                          echo "::error file=${{ github.action }}::The state rm command expects one or more ADDRESS. Arguments received: ${passed_arguments}" | tee -a $tf_error_file
+                          exit 1
+                        else
+                          arguments="${passed_arguments}"
+                        fi
+                        ;;
+                      'show')
+                        if [ ${#elements[@]} -lt 2 ]; then
+                          echo "::error file=${{ github.action }}::The state show command expects an ADDRESS. Arguments received: ${passed_arguments}" | tee -a $tf_error_file
+                          exit 1
+                        else
+                          arguments="${passed_arguments}"
+                        fi
+                        ;;
+                      *)
+                        echo "::error file=${{ github.action }}::The state command expects the sub command to be either list, mv, rm or show. Sub command received: ${sub_command}" | tee -a $tf_error_file
+                        exit 1
+                        ;;
+                    esac
+                  else
+                    echo "::error file=${{ github.action }}::No arguments received. The state command expects arguments." | tee -a $tf_error_file
+                    exit 1
+                  fi
+                  ;;
+                'untaint')
+                  if [ -n "${passed_arguments}" ]; then
+                    arguments="-no-color ${passed_arguments}"
+                  else
+                    echo "::error file=${{ github.action }}::No arguments received. The untaint command expects one argument ADDRESS." | tee -a $tf_error_file
+                    exit 1
+                  fi
+                  ;;
+                *)
+                  echo "::error file=${{ github.action }}::The terraform $command command is unsupported" | tee -a $tf_error_file
+                  exit 1
+                  ;;
+              esac
+              echo "Running terraform ${command} with..."
+              if [ -n "${arguments}" ]; then
+                echo "  ${arguments}"
+              fi
+              echo "  output file: ${tf_output_file}"
+              echo "  error file: ${tf_error_file}"
+              echo '>==============>==============>==============>==============>'
+              terraform ${command} ${arguments} 2> >(tee -a $tf_error_file >&2) | tee $tf_output_file
+              echo '<==============<==============<==============<==============<'
+              if [ -f "${tf_output_file}" ]; then
+                if [ "${command}" == 'plan' ]; then
+                  if [ -f "${start_path}/tfplan" ]; then
+                    cp -f $tf_output_file ${start_path}/logs/terraform_${command}.original.output
+                    cat $tf_output_file | \
+                      sed -n '/Terraform used the selected providers to generate the following execution/,$p' | \
+                      sed -E 's/^([[:space:]]+)([-+])/\2\1/g' > ${start_path}/plan.txt
+                    mv -f ${start_path}/plan.txt $tf_output_file
+                  else
+                    echo "::error file=${{ github.action }}::Unable to find plan at ${start_path}/tfplan" | tee -a $tf_error_file
+                    exit 1
+                  fi
+                fi
+              else
+                echo "::error file=${{ github.action }}::Unable to find output at ${tf_output_file}" | tee -a $tf_error_file
+                exit 1
+              fi
+            fi
+          done
+          if [[ '${{ inputs.terraform_command }}' == *'apply'* ]]; then
+            echo "applied=true" >> $GITHUB_OUTPUT
+          fi
+          find . -name "backend.*.tf" -delete || true
+          find . -name "terraform.tfstate*" -delete || true
+
+      - name: Compare terraform state
+        id: terraform_state
+        shell: bash
+        run: |
+          set -Eeu
+          start_path=$(readlink -f .)
+          mkdir -p ${start_path}/logs
+          error_file="${start_path}/logs/stderr.log"
+          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          error_handler() {
+            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            exit $1
+          }
+          state_storage_account_name='${{ inputs.state_storage_account_name }}'
+          blob='${{ inputs.state_name }}'
+          blob_exists=$(az storage blob exists \
+            --name "${blob}" \
+            --container-name '${{ inputs.state_container }}' \
+            --account-name "${state_storage_account_name}" \
+            --auth-mode login \
+            --only-show-errors \
+            --query "exists" \
+            -o tsv 2>/dev/null || true)
+          if [ "${blob_exists}" == 'true' ]; then
+            echo "Download https://${state_storage_account_name}.blob.core.windows.net/${{ inputs.state_container }}/${blob}"
+            az storage blob download \
+              --name "${blob}" \
+              --container-name '${{ inputs.state_container }}' \
+              --file "${start_path}/logs/${blob}.after" \
+              --account-name "${state_storage_account_name}" \
+              --auth-mode login \
+              --no-progress \
+              --overwrite \
+              --only-show-errors \
+              -o none 2> >(tee -a $error_file >&2)
+            serial=$(cat ${start_path}/logs/${blob}.after | jq -r .serial)
+            if [ "${serial}" != '${{ steps.get_terraform_state.outputs.serial }}' ]; then
+              echo "State file serial changed from ${{ steps.get_terraform_state.outputs.serial }} to ${serial}"
+              echo "changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "State file serial is still ${serial}"
+              echo "changed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Unable to find https://${state_storage_account_name}.blob.core.windows.net/${{ inputs.state_container }}/${blob}"
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload state files
+        id: upload_state
+        if: contains(fromJSON('["plan", "apply"]'), inputs.terraform_command)
+        shell: bash
+        run: |
+          set -Eeu
+          start_path=$(readlink -f .)
+          code_path=$(readlink -f src/${{ inputs.code_path }})
+          mkdir -p ${start_path}/logs
+          error_file="${start_path}/logs/stderr.log"
+          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          error_handler() {
+            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            exit $1
+          }
+          state_storage_account_name='${{ inputs.state_storage_account_name }}'
+          container_name=$(az storage container list \
+            --account-name "${state_storage_account_name}" \
+            --auth-mode login \
+            --only-show-errors \
+            --query "[?name=='${PLAN_CONTAINER}'].[name]" \
+            -o tsv 2>/dev/null || true)
+          if [ -z "${container_name}" ]; then
+            az storage container create \
+              --name "${PLAN_CONTAINER}" \
+              --account-name "${state_storage_account_name}" \
+              --auth-mode login \
+              --public-access off \
+              --only-show-errors \
+              -o none 2> >(tee -a $error_file >&2)
+            echo "Created container ${PLAN_CONTAINER} in ${state_storage_account_name}"
+          fi
+          expr '${{ inputs.pull_request_head_sha }}' | tee $start_path/tfplan.SHA >/dev/null
+          if [[ '${{ inputs.terraform_command }}' == *'apply'* ]]; then
+            blob='tfplan.SHA'
+            if [ -f "${start_path}/${blob}" ]; then
+              echo "Upload https://${state_storage_account_name}.blob.core.windows.net/${PLAN_CONTAINER}/${PLAN_FOLDER}/tfapply.SHA"
+              az storage blob upload \
+                --file "${start_path}/${blob}" \
+                --container-name "${PLAN_CONTAINER}" \
+                --name "${PLAN_FOLDER}/tfapply.SHA" \
+                --account-name "${state_storage_account_name}" \
+                --auth-mode login \
+                --no-progress \
+                --overwrite \
+                --only-show-errors \
+                -o none 2> >(tee -a $error_file >&2)
+            else
+              echo "::error file=${{ github.action }}::Unable to find ${start_path}/${blob}" | tee -a $error_file
+              exit 1
+            fi
+          fi
+          if [[ '${{ inputs.terraform_command }}' == *'plan'* ]]; then
+            blob_list=('tfplan' 'tfplan.SHA' '.terraform.lock.hcl')
+            path_list=("${start_path}" "${start_path}" "${code_path}")
+            for i in "${!blob_list[@]}"; do
+              if [ -f "${path_list[i]}/${blob_list[i]}" ]; then
+                echo "Upload https://${state_storage_account_name}.blob.core.windows.net/${PLAN_CONTAINER}/${PLAN_FOLDER}/${blob_list[i]}"
+                az storage blob upload \
+                  --file "${path_list[i]}/${blob_list[i]}" \
+                  --container-name "${PLAN_CONTAINER}" \
+                  --name "${PLAN_FOLDER}/${blob_list[i]}" \
+                  --account-name "${state_storage_account_name}" \
+                  --auth-mode login \
+                  --no-progress \
+                  --overwrite \
+                  --only-show-errors \
+                  -o none 2> >(tee -a $error_file >&2)
+              else
+                echo "::error file=${{ github.action }}::Unable to find ${path_list[i]}/${blob_list[i]}" | tee -a $error_file
+                exit 1
+              fi
+            done
+          fi
+
+      - name: Setup infrastructure cost tool
+        id: infracost_setup
+        if: contains(inputs.terraform_command, 'plan')
+        uses: infracost/actions/setup@v2
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Checkout base ref (main)
+        id: checkout_base
+        if: contains(inputs.terraform_command, 'plan')
+        uses: actions/checkout@v3
+        with:
+          path: main
+          ref: ${{ inputs.pull_request_base_ref }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Generate infrastructure cost diff
+        id: infracost-diff
+        if: contains(inputs.terraform_command, 'plan')
+        shell: bash
+        run: |
+          set -Eeu
+          start_path=$(readlink -f .)
+          code_path=$(readlink -f src/${{ inputs.code_path }})
+          main_path=$(readlink -f main/${{ inputs.code_path }})
+          mkdir -p ${start_path}/logs
+          error_file="${start_path}/logs/stderr.log"
+          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          error_handler() {
+            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            exit $1
+          }
+          if [[ -n "$(find main/ -maxdepth 1 -name "*.tf" -type f)" ]]; then
+            echo "Create infracost baseline using plan in base branch (main)"
+            infracost breakdown \
+              --log-level ${{ inputs.log_severity }} \
+              --no-color \
+              --path=$main_path \
+              --format=json \
+              --out-file=$start_path/infracost-base.json
+            echo "Compare current commit with baseline from plan in base branch (main)"
+            infracost diff \
+              --log-level ${{ inputs.log_severity }} \
+              --no-color \
+              --path=$code_path \
+              --format=json \
+              --compare-to=$start_path/infracost-base.json \
+              --out-file=$start_path/infracost.json
+          else
+            echo "Create infracost breakdown using plan from current commit"
+            infracost breakdown \
+              --log-level ${{ inputs.log_severity }} \
+              --no-color \
+              --path=$code_path \
+              --format=json \
+              --out-file=$start_path/infracost.json
+          fi
+
+      - name: Add or update infrastructure cost comment
+        id: infracost_comment
+        if: contains(inputs.terraform_command, 'plan')
+        shell: bash
+        run: |
+          set -Eeu
+          start_path=$(readlink -f .)
+          mkdir -p ${start_path}/logs
+          error_file="${start_path}/logs/stderr.log"
+          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          error_handler() {
+            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            exit $1
+          }
+          infracost comment github --path=$start_path/infracost.json \
+            --log-level ${{ inputs.log_severity }} \
+            --no-color \
+            --repo='${{ github.repository }}' \
+            --github-token='${{ secrets.GITHUB_TOKEN }}' \
+            --pull-request=$PULL_REQUEST_NUMBER \
+            --behavior=update
+
+      - name: Auto merge when applied
+        id: auto_merge
+        if: >
+          github.event_name == 'issue_comment' && steps.terraform.outputs.applied == 'true' && contains(fromJSON('["merge", "squash", "rebase"]'), inputs.merge_method)
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const {PULL_REQUEST_NUMBER} = process.env;
+            const repo = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            };
+            let fail_message = '';
+            try {
+              const response = await github.rest.pulls.merge({
+                ...repo,
+                pull_number: PULL_REQUEST_NUMBER,
+                merge_method: "${{ inputs.merge_method }}",
+              });
+              if (response.status != 200 || !response.data) {
+                fail_message = `Failed to merge pull request ${PULL_REQUEST_NUMBER}. Response: ${JSON.stringify(response)}`;
+              } else {
+                const message = `${response.data.message} (PR${PULL_REQUEST_NUMBER}, merged: ${response.data.merged}).`;
+                core.setOutput('merged', response.data.merged);
+                if ('${{ inputs.keep_branch_after_merge }}' == 'false') {
+                  const response_dr = await github.rest.git.deleteRef({
+                    ...repo,
+                    ref: 'heads/${{ inputs.pull_request_head_ref }}',
+                  });
+                  if (response_dr.status > 204) {
+                    fail_message = `${message} Failed to delete merged branch ${{ inputs.pull_request_head_ref }}. Response: ${JSON.stringify(response_dr)}`;
+                  } else {
+                    core.info(`${message} The branch '${{ inputs.pull_request_head_ref }}' was deleted.`);
+                  }
+                }
+              }
+            } catch (e) {
+              fail_message = `Failed to merge pull request ${PULL_REQUEST_NUMBER}: ${e}`;
+            }
+            if (fail_message != '') {
+              core.exportVariable('WF_AUTO_MERGE_MESSAGE', fail_message);
+              core.setOutput('merged', 'false');
+              core.setFailed(fail_message);
+            }
+
+      - name: Job cancelled
+        id: job_cancelled
+        if: cancelled()
+        shell: bash
+        run: echo "JOB_STATUS=cancelled" >> $GITHUB_ENV
+
+      - name: Job failed
+        id: job_failed
+        if: failure()
+        shell: bash
+        run: echo "JOB_STATUS=failed" >> $GITHUB_ENV
+
+      - name: Comment when done
+        id: comment_when_done
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const STATUS = process.env.JOB_STATUS ?? 'success';
+            const TERRAFORM_COMMENT = process.env.TERRAFORM_COMMENT ?? '';
+            const AUTO_MERGE_MESSAGE = process.env.WF_AUTO_MERGE_MESSAGE ?? '';
+            const {PLAN_FOLDER} = process.env;
+            const {PLAN_CONTAINER} = process.env;
+            const {PULL_REQUEST_NUMBER} = process.env;
+            const repo_url = `${context.serverUrl}/${{ github.repository }}`;
+            const run_url = `${repo_url}/actions/runs/${context.runId}`;
+            const ansi_regex = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+            const fs = require('fs');
+            const path = require('node:path');
+            const error_file=path.join(process.cwd(), 'logs', 'stderr.log');
+            const command_list = '${{ inputs.terraform_command }}'.split('|');
+            const argument_list = '${{ inputs.terraform_arguments }}'.split('|');
+            const plan_comment_start = 'Terraform plan';
+            const plan_url_replace = '_See the plan in separate comment.'
+            const current_time = new Date();
+            const repo = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            };
+            let plan_status = 'unknown';
+            let data = '', data_clean = '', body = '', body_plan = '', details = '';
+            let command = '', argument_info = '', new_plan_prefix = '';
+            let title = '', tf_title = '', instruction = '';
+            let std_error = '', std_error_time = '';
+            let tf_output_file = '', tf_output = '', tf_output_time = '';
+            let tf_error_file = '', tf_error = '', tf_error_time = '';
+            let comment, comments = [], comment_id = 0;
+            let plan_comment_id = 0, plan_comment_url = '';
+            let run_date = current_time.toLocaleDateString('${{ inputs.date_time_language_format }}', {timeZone: '${{ inputs.time_zone }}'});
+            if (STATUS == 'failed') {
+              title = '## Job failed ⛔';
+            } else if (STATUS == 'cancelled') {
+              title = '## Job cancelled 🗙';
+            } else {
+              title = '## Job completed ✅';
+            }
+            details = `| Job | Commit | Actor | Environment | Level | Subscription | Plan |
+            | --- | --- | --- | --- | --- | --- | --- |
+            | [#${context.runNumber}](${run_url}) | ${{ inputs.pull_request_head_sha }} | @${context.actor} | ${{ inputs.environment }} | ${{ inputs.level }} | ${{ inputs.target_subscription_name }} | [${PLAN_FOLDER}](https://${{ inputs.state_storage_account_name }}.blob.core.windows.net/${PLAN_CONTAINER}/${PLAN_FOLDER}/tfplan) |`;
+            if (TERRAFORM_COMMENT == '') {
+              body = `${title}\n\n${details}`;
+            } else {
+              body = `${title}\n\n${details}\n\n${TERRAFORM_COMMENT}`;
+            }
+            if ('${{ steps.auto_merge.outputs.merged }}' == 'true' && AUTO_MERGE_MESSAGE != '') {
+              body = `${body}\n\n${AUTO_MERGE_MESSAGE} 🎉`;
+            } else if (AUTO_MERGE_MESSAGE != '') {
+              body = `${body}\n\n${AUTO_MERGE_MESSAGE} 🚫`;
+            }
+            if (STATUS == 'failed') {
+              try {
+                if (fs.existsSync(error_file)) {
+                  core.info(`Read ${error_file}`);
+                  data = fs.readFileSync(error_file, 'utf8');
+                  data_clean = data.replace(ansi_regex, '').trim().replace(/”/g, '"');
+                  std_error = data_clean.length > 65000 ? `${data_clean.toString().substring(0, 30000).trim()}
+                  ...
+                  ... lines removed because text is too long
+                  ...
+                  ${data_clean.toString().substring(data_clean.length - 10000).trim()}` : data_clean;
+                  if (std_error) {
+                    std_error = std_error.replace(/(?![^\n]{1,110}$)([^\n]{1,110})\s/g, "$1\n");
+                    std_error_time = fs.statSync(error_file).mtime.toLocaleTimeString('${{ inputs.date_time_language_format }}', {timeZone: '${{ inputs.time_zone }}'});
+                    body = `${title}\n\n${details}\n\nError occurred at ${std_error_time}:\n\n\`\`\`text\n${std_error}\n\`\`\``;
+                  }
+                } else {
+                  core.notice(`Could not find ${error_file} after completing the terraform job.`);
+                }
+              } catch (e) {
+                if (!e.message.includes('no such file or directory')) {
+                  core.warning(`Failed to read file ${error_file}: ${e}`);
+                }
+              }
+            }
+            for (var i = 0; i < command_list.length; i++) {
+              command = command_list[i].trim().toLowerCase();
+              tf_output = '';
+              tf_output_time = '';
+              tf_output_file=path.join(process.cwd(), 'logs', `terraform${i}_${command}.output`);
+              tf_error = '';
+              tf_error_time = '';
+              tf_error_file=path.join(process.cwd(), 'logs', `terraform${i}_${command}.error`);
+              body_plan = '';
+              argument_info = argument_list[i].trim().toLowerCase();
+              if (argument_info != '') {
+                argument_info = `\n\nArguments: \`${argument_info}\``;
+              }
+              try {
+                if (fs.existsSync(tf_output_file)) {
+                  core.info(`Read ${tf_output_file}`);
+                  data = fs.readFileSync(tf_output_file, 'utf8');
+                  data_clean = data.replace(ansi_regex, '').trim().replace(/”/g, '"');
+                  tf_output = data_clean.length > 65000 ? `${data_clean.toString().substring(0, 30000).trim()}
+                  ...
+                  ... lines removed because text is too long
+                  ...
+                  ${data_clean.toString().substring(data_clean.length - 10000).trim()}` : data_clean;
+                  tf_output_time = fs.statSync(tf_output_file).mtime.toLocaleTimeString('${{ inputs.date_time_language_format }}', {timeZone: '${{ inputs.time_zone }}'});
+                } else {
+                  core.notice(`Could not find ${tf_output_file} after completing the terraform job.`);
+                }
+              } catch (e) {
+                if (!e.message.includes('no such file or directory')) {
+                  core.warning(`Failed to read file ${tf_error_file}: ${e}`);
+                }
+              }
+              try {
+                if (fs.existsSync(tf_error_file)) {
+                  core.info(`Read ${tf_error_file}`);
+                  data = fs.readFileSync(tf_error_file, 'utf8');
+                  data_clean = data.replace(ansi_regex, '').trim().replace(/”/g, '"');
+                  tf_error = data_clean.length > 65000 ? `${data_clean.toString().substring(0, 30000).trim()}
+                  ...
+                  ... lines removed because text is too long
+                  ...
+                  ${data_clean.toString().substring(data_clean.length - 10000).trim()}` : data_clean;
+                  tf_error_time = fs.statSync(tf_error_file).mtime.toLocaleTimeString('${{ inputs.date_time_language_format }}', {timeZone: '${{ inputs.time_zone }}'});
+                } else {
+                  core.notice(`Could not find ${tf_error_file} after completing the terraform job.`);
+                }
+              } catch (e) {
+                if (!e.message.includes('no such file or directory')) {
+                  core.warning(`Failed to read file ${tf_error_file}: ${e}`);
+                }
+              }
+              if (tf_error) {
+                tf_error = tf_error.replace(/(?![^\n]{1,110}$)([^\n]{1,110})\s/g, "$1\n");
+                body = `${body}\n\n### Terraform ${command} failed at ${tf_error_time} ⛔${argument_info}\n\n\`\`\`hcl\n${tf_error}\n\`\`\``;
+              } else if (!tf_output) {
+                body = `${body}\n\n### Terraform ${command} output not found ⦸${argument_info}`;
+              } else if (command == 'plan') {
+                plan_status = 'success';
+                body = `${body}\n\n### Terraform ${command} completed at ${tf_output_time} ✅${argument_info}${plan_url_replace}`;
+                if (command_list.indexOf('apply') > -1 && '${{ steps.terraform_state.outputs.changed }}' == 'true') {
+                  new_plan_prefix = '(Stale) ';
+                }
+                body_plan = `## ${new_plan_prefix}${plan_comment_start} 🗓️\n\n${details}\n\nThis plan was generated at ${run_date} ${tf_output_time}.`;
+                body_plan = `${body_plan}\n\n${{ inputs.saved_plan_diff }}`;
+                body_plan = `${body_plan}\n\n<details><summary>Show ${command}</summary>\n\n\`\`\`diff\n${tf_output}\n\`\`\`\n\n</details>`;
+                body_plan = `${body_plan}\n\n### Actions`;
+                body_plan = `${body_plan}\n\nReview the plan. Updates should be pushed to the [${{ inputs.pull_request_head_ref }}](${repo_url}/tree/${{ inputs.pull_request_head_ref }}) branch.`;
+                body_plan = `${body_plan}\n\nApply the plan by adding a comment with the text \`/apply\` on the first line.`;
+              } else {
+                body = `${body}\n\n### Terraform ${command} completed at ${tf_output_time} ✅${argument_info}`;
+                body = `${body}\n\n<details><summary>Show ${command} output</summary>\n\n\`\`\`hcl\n${tf_output}\n\`\`\`\n\n</details>`;
+              }
+            }
+            if ('${{ steps.terraform_state.outputs.changed }}' == 'true' || plan_status == 'success') {
+              try {
+                comments = await github.paginate(
+                  github.rest.issues.listComments, {
+                    ...repo,
+                    issue_number: context.issue.number,
+                  },
+                    (response_lc) => response_lc.data.map((item) => {
+                      return ({id: item.id, body: item.body})
+                    })
+                );
+                if (comments.length !== 0) {
+                  const filtered_comments = comments.filter((item) => item.body.startsWith(`## ${plan_comment_start}`));
+                  if (filtered_comments.length !== 0) {
+                    comment = filtered_comments.at(-1);
+                    plan_comment_id = comment.id;
+                    core.info(`Found comment ${plan_comment_id} with title '${plan_comment_start}'`);
+                  }
+                }
+              } catch (e) {
+                const message = `Failed to find comment for Terraform plan: ${e}.`;
+                core.setFailed(message);
+                return;
+              }
+            }
+            if ('${{ steps.terraform_state.outputs.changed }}' == 'true' && plan_comment_id !== 0) {
+              core.info(`Update title of comment ${plan_comment_id} to '(Stale) ${plan_comment_start}'`);
+              const body_stale = comment.body.replace(plan_comment_start, `(Stale) ${plan_comment_start}`);
+              try {
+                const response_uc = await github.rest.issues.updateComment({
+                  ...repo,
+                  comment_id: plan_comment_id,
+                  body: body_stale
+                });
+                if (response_uc.status != 200 || !response_uc.data) {
+                  const message = `Failed to update comment ${plan_comment_id}. Response: ${JSON.stringify(response_uc)}`;
+                  core.setFailed(message);
+                  return;
+                }
+                plan_comment_id = 0;
+              } catch (e) {
+                core.info(body_stale);
+                const message = `Failed to update comment for Terraform plan: ${e}.`;
+                core.setFailed(message);
+                return;
+              }
+            }
+            if (body_plan != '') {
+              try {
+                if (plan_comment_id === 0) {
+                  core.info(`Create comment for issue ${context.issue.number} with title '${new_plan_prefix}${plan_comment_start}'`);
+                  const response_cc = await github.rest.issues.createComment({
+                    ...repo,
+                    issue_number: context.issue.number,
+                    body: body_plan,
+                  });
+                  if (response_cc.status > 201 || !response_cc.data) {
+                    const message = `Failed to create comment for issue ${context.issue.number}: ${JSON.stringify(response_cc)}`;
+                    core.setFailed(message);
+                    return;
+                  } else {
+                    plan_comment_id = response_cc.data.id;
+                  }
+                } else {
+                  core.info(`Update comment ${plan_comment_id} with title '${new_plan_prefix}${plan_comment_start}'`);
+                  const response_uc = await github.rest.issues.updateComment({
+                    ...repo,
+                    comment_id: plan_comment_id,
+                    body: body_plan,
+                  });
+                  if (response_uc.status != 200 || !response_uc.data) {
+                    const message = `Failed to update comment ${plan_comment_id}: ${JSON.stringify(response_uc)}`;
+                    core.setFailed(message);
+                    return;
+                  }
+                }
+                body = body.replace(plan_url_replace, `\n\nSee [terraform plan](${repo_url}/pull/${PULL_REQUEST_NUMBER}#issuecomment-${plan_comment_id}).`);
+              } catch (e) {
+                const message = `Failed to add or update comment with title '${new_plan_prefix}${plan_comment_start}': ${e}`;
+                core.setFailed(message);
+                return;
+              }
+            } else {
+              body = body.replace(plan_url_replace, '');
+            }
+            comment_id = isNaN('${{ inputs.comment_id }}') ? 0 : +'${{ inputs.comment_id }}';
+            core.info(`Update comment ${comment_id} with the following text:`);
+            core.info(body);
+            if (comment_id != 0) {
+              try {
+                const response = await github.rest.issues.updateComment({
+                  ...repo,
+                  comment_id: comment_id,
+                  body: body,
+                });
+                if (response.status != 200 || !response.data) {
+                  const message = `Failed to update comment ${comment_id}. Response: ${JSON.stringify(response)}`;
+                  core.setFailed(message);
+                }
+              } catch (e) {
+                const message = `Failed to update comment ${comment_id}: ${e}`;
+                core.setFailed(message);
+              }
+            }
+
+      - name: Upload logs
+        id: upload_logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: terraform_logs
+          path: logs/
+          if-no-files-found: ignore
+          retention-days: 0
+
+      - name: Dump github context
+        id: dump_github_context
+        if: >
+          failure() || (
+            success() &&
+            !contains(
+              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
+            )
+          )
+        env:
+          GH_CONTEXT: ${{ toJson(github) }}
+        run: echo "${GH_CONTEXT}"
+
+      - name: Dump steps context
+        id: dump_steps_context
+        if: >
+          failure() || (
+            success() &&
+            !contains(
+              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
+            )
+          )
+        env:
+          STEPS_CONTEXT: ${{ toJson(steps) }}
+        run: echo "${STEPS_CONTEXT}"
+
+      - name: Print variables and event
+        id: dump_env
+        if: >
+          failure() || (
+            success() &&
+            !contains(
+              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
+            )
+          )
+        uses: hmarr/debug-action@v2

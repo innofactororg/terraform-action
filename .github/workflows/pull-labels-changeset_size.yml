@@ -1,0 +1,32 @@
+name: "📁 Changeset size"
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  labeler:
+    name: "Changeset size"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Labeler"
+        uses: actions/labeler@v4
+        with:
+          configuration-path: .github/labeler.yml
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Label size"
+        uses: pascalgn/size-label-action@v0.4.3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          sizes: >
+            {
+              "0": "XS",
+              "20": "S",
+              "50": "M",
+              "200": "L",
+              "800": "XL",
+              "2000": "XXL"
+            }

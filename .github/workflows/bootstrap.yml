@@ -1,0 +1,565 @@
+name: "🥾 Bootstrap"
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "The terraform environment name."
+        required: true
+        type: string
+      level:
+        description: "The level in the CAF hierarchy where to deploy the resources."
+        required: false
+        default: "level4"
+        type: string
+      azure_tenant_id:
+        description: "The tenant ID in which the subscription exists."
+        required: true
+        type: string
+      azure_ad_client_id:
+        description: "The client ID of the service principal used by terraform."
+        required: true
+        type: string
+      state_name:
+        description: "The blob name for the terraform state file. If empty, tfstate will be used. It must be tfstate or end with .tfstate."
+        required: false
+        default: "tfstate"
+        type: string
+      state_container:
+        description: "The storage account container name for the terraform state. If empty, tfstate will be used."
+        required: false
+        default: "tfstate"
+        type: string
+      state_location:
+        description: "The Azure location for the required terraform state resources."
+        required: false
+        default: "westeurope"
+        type: string
+      state_subscription_id:
+        description: "The subscription of the terraform state management resources."
+        required: true
+        type: string
+      target_subscription_id:
+        description: "The subscription ID in which to deploy the resources."
+        required: true
+        type: string
+      library_01_app_id:
+        description: "The App ID of a GitHub App with read access the repository specified in input variable library_01_repo."
+        required: false
+        default: ""
+        type: string
+      library_01_repo:
+        description: "The name of a repository with library files that is needed by terraform files."
+        required: false
+        default: ""
+        type: string
+      library_01_path:
+        description: "The path where the repository, specified in library_01_repo, will be checked out to."
+        required: false
+        default: ""
+        type: string
+      library_02_app_id:
+        description: "The App ID of a GitHub App with read access the repository specified in input variable library_02_repo."
+        required: false
+        default: ""
+        type: string
+      library_02_repo:
+        description: "The name of a repository with library files that is needed by terraform files."
+        required: false
+        default: ""
+        type: string
+      library_02_path:
+        description: "The path where the repository, specified in library_02_repo, will be checked out to."
+        required: false
+        default: ""
+        type: string
+      library_03_app_id:
+        description: "The App ID of a GitHub App with read access the repository specified in input variable library_03_repo."
+        required: false
+        default: ""
+        type: string
+      library_03_repo:
+        description: "The name of a repository with library files that is needed by terraform files."
+        required: false
+        default: ""
+        type: string
+      library_03_path:
+        description: "The path where the repository, specified in library_03_repo, will be checked out to."
+        required: false
+        default: ""
+        type: string
+      library_04_app_id:
+        description: "The App ID of a GitHub App with read access the repository specified in input variable library_04_repo."
+        required: false
+        default: ""
+        type: string
+      library_04_repo:
+        description: "The name of a repository with library files that is needed by terraform files."
+        required: false
+        default: ""
+        type: string
+      library_04_path:
+        description: "The path where the repository, specified in library_04_repo, will be checked out to."
+        required: false
+        default: ""
+        type: string
+      library_05_app_id:
+        description: "The App ID of a GitHub App with read access the repository specified in input variable library_05_repo."
+        required: false
+        default: ""
+        type: string
+      library_05_repo:
+        description: "The name of a repository with library files that is needed by terraform files."
+        required: false
+        default: ""
+        type: string
+      library_05_path:
+        description: "The path where the repository, specified in library_05_repo, will be checked out to."
+        required: false
+        default: ""
+        type: string
+      code_path:
+        description: "Path to terraform code (.tf files) to be executed."
+        required: false
+        default: "."
+        type: string
+      var_path:
+        description: "Path to the configuration files. All .tfvars files in the directory will be expanded."
+        required: false
+        default: "."
+        type: string
+      require_codeowners_file_for_apply:
+        description: "Require a CODEOWNERS file before allowing terraform apply."
+        required: false
+        default: false
+        type: boolean
+      require_code_owner_for_apply:
+        description: "Check that actor is code owner before allowing terraform apply."
+        required: false
+        default: true
+        type: boolean
+      require_code_owner_review_for_apply:
+        description: "Check that a code owner has reviewed and approved the pull request."
+        required: false
+        default: true
+        type: boolean
+      require_codeteams_file_for_apply:
+        description: "Require a CODETEAMS file before allowing terraform apply."
+        required: false
+        default: false
+        type: boolean
+      require_code_team_review_for_apply:
+        description: "Check that a code team member has reviewed and approved the pull request."
+        required: false
+        default: true
+        type: boolean
+      required_mergeable_state_for_apply:
+        description: "Check that the pull request mergable state is in one of the specified states."
+        required: false
+        default: '["clean","has_hooks","unstable"]'
+        type: string
+      merge_method:
+        description: "The merge method to use after successful terraform apply. Can be one of: merge, squash, rebase or disable to turn off auto merge."
+        required: false
+        default: "squash"
+        type: string
+      keep_branch_after_merge:
+        description: "Prevent deleting the branch after merge."
+        required: false
+        default: false
+        type: boolean
+      date_time_language_format:
+        description: "The format to use for date and time in comments. Corresponds to the locales parameter of the Intl.DateTimeFormat() constructor."
+        required: false
+        default: "sv-SE"
+        type: string
+      time_zone:
+        description: "The time zone to use when converting UTC time, to show time in comments. See https://www.iana.org/time-zones."
+        required: false
+        default: "Europe/Oslo"
+        type: string
+      log_severity:
+        description: "The log verbosity."
+        required: false
+        default: "ERROR"
+        type: string
+    secrets:
+      AZURE_AD_CLIENT_SECRET:
+        description: "The client secret of the service principal."
+        required: true
+      INFRACOST_API_KEY:
+        description: "The infrastructure cost API key for calculating cost impact of the terraform plan."
+        required: true
+      LIBRARY_01_PRIVATE_KEY:
+        description: "A private key from the GitHub App specified in library_01_app_id."
+        required: false
+      LIBRARY_02_PRIVATE_KEY:
+        description: "A private key from the GitHub App specified in library_02_app_id."
+        required: false
+      LIBRARY_03_PRIVATE_KEY:
+        description: "A private key from the GitHub App specified in library_03_app_id."
+        required: false
+      LIBRARY_04_PRIVATE_KEY:
+        description: "A private key from the GitHub App specified in library_04_app_id."
+        required: false
+      LIBRARY_05_PRIVATE_KEY:
+        description: "A private key from the GitHub App specified in library_05_app_id."
+        required: false
+
+defaults:
+  run:
+    shell: bash
+
+concurrency: ${{ github.workflow }}
+
+jobs:
+  info:
+    name: "🎫 Info"
+    if: >
+      github.event_name == 'pull_request' || github.event_name == 'pull_request_target' || (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request
+      )
+    permissions:
+      actions: read # for actions to get workflow details
+      pull-requests: write # for getting pull request values and updating issue comment
+    runs-on: ubuntu-latest
+    env:
+      COMMENT_BODY: ${{ github.event.comment.body }}
+      PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+    outputs:
+      base_ref: ${{ steps.pull_request_values.outputs.base_ref }}
+      base_sha: ${{ steps.pull_request_values.outputs.base_sha }}
+      head_ref: ${{ steps.pull_request_values.outputs.head_ref }}
+      head_sha: ${{ steps.pull_request_values.outputs.head_sha }}
+      merged: ${{ steps.pull_request_values.outputs.merged }}
+      mergeable: ${{ steps.pull_request_values.outputs.mergeable }}
+      mergeable_state: ${{ steps.pull_request_values.outputs.mergeable_state }}
+      comment_id: ${{ steps.comment_when_start.outputs.id }}
+    steps:
+      - name: Get pull request
+        id: pull_request_values
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              const {PULL_REQUEST_NUMBER} = process.env;
+              if (context.eventName == 'issue_comment') {
+                const response_pull = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: PULL_REQUEST_NUMBER,
+                });
+                if (response_pull.status != 200 || !response_pull.data) {
+                  const message = `Failed to get pull request ${PULL_REQUEST_NUMBER}. Response: ${JSON.stringify(response_pull)}`;
+                  core.exportVariable('WF_STEP_ERROR_MESSAGE', message);
+                  core.setFailed(message);
+                } else {
+                  core.info(`Pull request ${PULL_REQUEST_NUMBER} retrieved. Title: ${response_pull.data.title}`);
+                  core.setOutput('base_ref', response_pull.data.base.ref);
+                  core.setOutput('base_sha', response_pull.data.base.sha);
+                  core.setOutput('head_ref', response_pull.data.head.ref);
+                  core.setOutput('head_sha', response_pull.data.head.sha);
+                  core.setOutput('merged', response_pull.data.merged);
+                  core.setOutput('mergeable', response_pull.data.mergeable);
+                  core.setOutput('mergeable_state', response_pull.data.mergeable_state);
+                }
+              } else {
+                core.info(`Pull request ${PULL_REQUEST_NUMBER} retrieved.`);
+                core.setOutput('base_ref', '${{ github.event.pull_request.base.ref }}');
+                core.setOutput('base_sha', '${{ github.event.pull_request.base.sha }}');
+                core.setOutput('head_ref', '${{ github.event.pull_request.head.ref }}');
+                core.setOutput('head_sha', '${{ github.event.pull_request.head.sha }}');
+              }
+            } catch (e) {
+              const message = `Failed to get pull request: ${e}`;
+              core.exportVariable('WF_STEP_ERROR_MESSAGE', message);
+              core.setFailed(message);
+            }
+
+      - name: Comment when start
+        id: comment_when_start
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const COMMENT_BODY = process.env.COMMENT_BODY ?? '';
+            const run_url = `${context.serverUrl}/${{ github.repository }}/actions/runs/${context.runId}`;
+            const repo = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            };
+            let comment_id = isNaN('${{ github.event.comment.id }}') ? 0 : +'${{ github.event.comment.id }}';
+            let body = `## Job started ⌛\n\nCommit ${{ steps.pull_request_values.outputs.head_sha }}: a [workflow job](${run_url}) has started to evaluate`;
+            if (context.eventName == 'issue_comment') {
+              body = `${COMMENT_BODY}\n\n${body} this comment...`;
+            } else {
+              body = `${body} this pull request commit...`;
+            }
+            try {
+              if (comment_id == 0) {
+                core.info(`Create a comment with the text:`);
+                core.info(body);
+                const response_cc = await github.rest.issues.createComment({
+                  ...repo,
+                  issue_number: context.issue.number,
+                  body: body,
+                });
+                if (response_cc.status > 201 || !response_cc.data) {
+                  const message = `Failed to create comment for issue ${context.issue.number}. Response: ${JSON.stringify(response_cc)}`;
+                  core.exportVariable('WF_STEP_ERROR_MESSAGE', message);
+                  core.setFailed(message);
+                  return;
+                } else {
+                  comment_id = response_cc.data.id;
+                }
+              } else {
+                core.info(`Update comment ${comment_id} with the comment text:`);
+                core.info(body);
+                const response = await github.rest.issues.updateComment({
+                  ...repo,
+                  comment_id: comment_id,
+                  body: body,
+                });
+                if (response.status != 200 || !response.data) {
+                  const message = `Failed to update comment ${{ github.event.comment.id }}. Response: ${JSON.stringify(response)}`;
+                  core.exportVariable('WF_STEP_ERROR_MESSAGE', message);
+                  core.setFailed(message);
+                  return;
+                }
+              }
+              core.setOutput('id', comment_id);
+            } catch (e) {
+              const message = `Failed to comment at start: ${e}`;
+              core.exportVariable('WF_STEP_ERROR_MESSAGE', message);
+              core.setFailed(message);
+            }
+
+      - name: Job cancelled
+        id: job_cancelled
+        if: cancelled()
+        shell: bash
+        run: echo "JOB_STATUS=cancelled" >> $GITHUB_ENV
+
+      - name: Job failed
+        id: job_failed
+        if: failure()
+        shell: bash
+        run: echo "JOB_STATUS=failed" >> $GITHUB_ENV
+
+      - name: Comment when done
+        id: comment_when_done
+        if: failure() || cancelled()
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const COMMENT_BODY = process.env.COMMENT_BODY ?? '';
+            const STATUS = process.env.JOB_STATUS ?? 'success';
+            const STEP_ERROR = process.env.WF_STEP_ERROR_MESSAGE ?? '';
+            const run_url = `${context.serverUrl}/${{ github.repository }}/actions/runs/${context.runId}`;
+            const details = `| Job | Commit | Actor |
+            | --- | --- | --- | --- | --- | --- | --- |
+            | [#${context.runNumber}](${run_url}) | ${{ steps.pull_request_values.outputs.head_sha }} | @${context.actor} |`;
+            let body = '';
+            if (STATUS == 'failed') {
+              body = `## Job failed ⛔\n\n${details}\n\n${STEP_ERROR}`;
+            } else if (STATUS == 'cancelled') {
+              body = `## Job cancelled 🗙\n\n${details}`;
+            }
+            if (context.eventName == 'issue_comment') {
+              body = `${COMMENT_BODY}\n\n${body}`;
+            }
+            const comment_id = isNaN('${{ steps.comment_when_start.outputs.id }}') ? 0 : +'${{ steps.comment_when_start.outputs.id }}';
+            if (comment_id != 0) {
+              core.info(`Update comment ${comment_id} with text:`);
+              core.info(body);
+              try {
+                const response = await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment_id,
+                  body: body,
+                });
+                if (response.status != 200 || !response.data) {
+                  const message = `Failed to update comment ${comment_id}. Response: ${JSON.stringify(response)}`;
+                  core.setFailed(message);
+                }
+              } catch (e) {
+                const message = `Failed to update comment ${comment_id}: ${e}`;
+                core.setFailed(message);
+              }
+            } else {
+              core.notice('Could not update the comment after completing the Info job.');
+              core.info('Comment text:');
+              core.info(body);
+            }
+
+      - name: Dump github context
+        id: dump_github_context
+        if: >
+          failure() || (
+            success() &&
+            !contains(
+              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
+            )
+          )
+        env:
+          GH_CONTEXT: ${{ toJson(github) }}
+        run: echo "${GH_CONTEXT}"
+
+      - name: Dump steps context
+        id: dump_steps_context
+        if: >
+          failure() || (
+            success() &&
+            !contains(
+              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
+            )
+          )
+        env:
+          STEPS_CONTEXT: ${{ toJson(steps) }}
+        run: echo "${STEPS_CONTEXT}"
+
+      - name: Print variables and event
+        id: dump_env
+        if: >
+          failure() || (
+            success() &&
+            !contains(
+              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
+            )
+          )
+        uses: hmarr/debug-action@v2
+
+  init:
+    name: "⏳ Init"
+    if: >
+      github.event_name == 'pull_request' || github.event_name == 'pull_request_target' || (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        (
+          startsWith(github.event.comment.body, '/plan') ||
+          startsWith(github.event.comment.body, '/apply') ||
+          startsWith(github.event.comment.body, '/force-unlock') ||
+          startsWith(github.event.comment.body, '/graph') ||
+          startsWith(github.event.comment.body, '/import') ||
+          startsWith(github.event.comment.body, '/state') ||
+          startsWith(github.event.comment.body, '/untaint')
+        )
+      )
+    needs: info
+    uses: ./.github/workflows/terraform-init.yml
+    secrets: inherit
+    with:
+      environment: ${{ inputs.environment }}
+      level: ${{ inputs.level }}
+      azure_tenant_id: ${{ inputs.azure_tenant_id }}
+      azure_ad_client_id: ${{ inputs.azure_ad_client_id }}
+      state_name: ${{ inputs.state_name }}
+      state_container: ${{ inputs.state_container }}
+      state_location: ${{ inputs.state_location }}
+      state_subscription_id: ${{ inputs.state_subscription_id }}
+      target_subscription_id: ${{ inputs.target_subscription_id }}
+      code_path: ${{ inputs.code_path }}
+      require_codeowners_file_for_apply: ${{ inputs.require_codeowners_file_for_apply }}
+      require_code_owner_for_apply: ${{ inputs.require_code_owner_for_apply }}
+      require_code_owner_review_for_apply: ${{ inputs.require_code_owner_review_for_apply }}
+      require_codeteams_file_for_apply: ${{ inputs.require_codeteams_file_for_apply }}
+      require_code_team_review_for_apply: ${{ inputs.require_code_team_review_for_apply }}
+      required_mergeable_state_for_apply: ${{ inputs.required_mergeable_state_for_apply }}
+      date_time_language_format: ${{ inputs.date_time_language_format }}
+      time_zone: ${{ inputs.time_zone }}
+      log_severity: ${{ inputs.log_severity }}
+      pull_request_head_ref: ${{ needs.info.outputs.head_ref }}
+      pull_request_head_sha: ${{ needs.info.outputs.head_sha }}
+      pull_request_merged: ${{ needs.info.outputs.merged }}
+      pull_request_mergeable: ${{ needs.info.outputs.mergeable }}
+      pull_request_mergeable_state: ${{ needs.info.outputs.mergeable_state }}
+      comment_id: ${{ needs.info.outputs.comment_id }}
+
+  run:
+    name: "🏃 Run"
+    if: >
+      (
+        github.event_name == 'pull_request' ||
+        github.event_name == 'pull_request_target' ||
+        (
+          github.event_name == 'issue_comment' &&
+          github.event.issue.pull_request &&
+          (
+            startsWith(github.event.comment.body, '/plan') ||
+            startsWith(github.event.comment.body, '/apply') ||
+            startsWith(github.event.comment.body, '/force-unlock') ||
+            startsWith(github.event.comment.body, '/graph') ||
+            startsWith(github.event.comment.body, '/import') ||
+            startsWith(github.event.comment.body, '/state') ||
+            startsWith(github.event.comment.body, '/untaint')
+          )
+        )
+      ) &&
+      needs.init.outputs.deny_reason == ''
+    needs: [info, init]
+    uses: ./.github/workflows/terraform-job.yml
+    secrets: inherit
+    with:
+      environment: ${{ inputs.environment }}
+      level: ${{ inputs.level }}
+      azure_tenant_id: ${{ inputs.azure_tenant_id }}
+      azure_ad_client_id: ${{ inputs.azure_ad_client_id }}
+      state_name: ${{ inputs.state_name }}
+      state_container: ${{ inputs.state_container }}
+      state_location: ${{ inputs.state_location }}
+      state_subscription_id: ${{ inputs.state_subscription_id }}
+      target_subscription_id: ${{ inputs.target_subscription_id }}
+      library_01_app_id: ${{ inputs.library_01_app_id }}
+      library_01_repo: ${{ inputs.library_01_repo }}
+      library_01_path: ${{ inputs.library_01_path }}
+      library_02_app_id: ${{ inputs.library_02_app_id }}
+      library_02_repo: ${{ inputs.library_02_repo }}
+      library_02_path: ${{ inputs.library_02_path }}
+      library_03_app_id: ${{ inputs.library_03_app_id }}
+      library_03_repo: ${{ inputs.library_03_repo }}
+      library_03_path: ${{ inputs.library_03_path }}
+      library_04_app_id: ${{ inputs.library_04_app_id }}
+      library_04_repo: ${{ inputs.library_04_repo }}
+      library_04_path: ${{ inputs.library_04_path }}
+      library_05_app_id: ${{ inputs.library_05_app_id }}
+      library_05_repo: ${{ inputs.library_05_repo }}
+      library_05_path: ${{ inputs.library_05_path }}
+      code_path: ${{ inputs.code_path }}
+      var_path: ${{ inputs.var_path }}
+      log_severity: ${{ inputs.log_severity }}
+      merge_method: ${{ inputs.merge_method }}
+      keep_branch_after_merge: ${{ inputs.keep_branch_after_merge }}
+      date_time_language_format: ${{ inputs.date_time_language_format }}
+      time_zone: ${{ inputs.time_zone }}
+      pull_request_base_ref: ${{ needs.info.outputs.base_ref }}
+      pull_request_base_sha: ${{ needs.info.outputs.base_sha }}
+      pull_request_head_ref: ${{ needs.info.outputs.head_ref }}
+      pull_request_head_sha: ${{ needs.info.outputs.head_sha }}
+      comment_id: ${{ needs.info.outputs.comment_id }}
+      signed_in_sp_name: ${{ needs.init.outputs.signed_in_sp_name }}
+      target_subscription_name: ${{ needs.init.outputs.target_subscription_name }}
+      state_subscription_name: ${{ needs.init.outputs.state_subscription_name }}
+      state_resource_group_name: ${{ needs.init.outputs.state_resource_group_name }}
+      state_storage_account_name: ${{ needs.init.outputs.state_storage_account_name }}
+      state_key_vault_name: ${{ needs.init.outputs.state_key_vault_name }}
+      state_backup_vault_name: ${{ needs.init.outputs.state_backup_vault_name }}
+      saved_plan_diff: ${{ needs.init.outputs.saved_plan_diff }}
+      terraform_command: ${{ needs.init.outputs.terraform_command }}
+      terraform_arguments: ${{ needs.init.outputs.terraform_arguments }}
+      terraform_comment: ${{ needs.init.outputs.terraform_comment }}
+
+  security:
+    name: "👮 Security"
+    if: >
+      github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '/scan')
+    needs: info
+    uses: ./.github/workflows/terraform-scan.yml
+    secrets: inherit
+    with:
+      log_severity: ${{ inputs.log_severity }}
+      pull_request_head_ref: ${{ needs.info.outputs.head_ref }}
+      pull_request_head_sha: ${{ needs.info.outputs.head_sha }}
+      comment_id: ${{ needs.info.outputs.comment_id }}
