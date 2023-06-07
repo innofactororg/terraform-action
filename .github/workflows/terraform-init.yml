@@ -212,79 +212,105 @@ jobs:
           set -Eeu
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
-          error_file="${start_path}/logs/stderr.log"
-          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          log_file="${start_path}/logs/steps.log"
+          trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
-            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
+              msg="Error $1 at line $(expr $2 + 1) in '${{ github.action }}': $3"
+              echo "::error file=${{ github.action }},line=$(expr $2 + 1)::$msg"
+              echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >>$4
+            fi
             exit $1
+          }
+          +std() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 1> >(tee -a $log_file) 2> >(tee -a $log_file >&2)
+            return ${PIPESTATUS[0]}
+          }
+          +noerr() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 2>/dev/null || null
+            return 0
+          }
+          +nostd() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 1> /dev/null 2> >(tee -a $log_file >&2)
+            return ${PIPESTATUS[0]}
+          }
+          +stdval() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 2> >(tee -a $log_file >&2)
+            return ${PIPESTATUS[0]}
           }
           if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
             echo 'Azure CLI versions:'
-            az version -o json --only-show-errors 2>/dev/null || true
+            +std az version -o json --only-show-errors
           fi
-          az config set extension.use_dynamic_install=yes_without_prompt --only-show-errors 2>/dev/null || true
-          az config set core.display_survey_message=false --only-show-errors 2>/dev/null || true
+          +std az config set extension.use_dynamic_install=yes_without_prompt --only-show-errors
+          +std az config set core.display_survey_message=false --only-show-errors
           sp_tenant_id='${{ inputs.azure_tenant_id }}'
           sp_client_id='${{ inputs.azure_ad_client_id }}'
           sp_client_secret='${{ secrets.AZURE_AD_CLIENT_SECRET }}'
-          az login --service-principal \
+          +nostd az login --service-principal \
             -t $sp_tenant_id \
             -u $sp_client_id \
             -p $sp_client_secret \
-            --only-show-errors 1> /dev/null 2> >(tee -a $error_file >&2)
-          signed_in_sp_name=$(az ad sp show \
+            --only-show-errors
+          signed_in_sp_name=$(+stdval az ad sp show \
             --id $sp_client_id \
             --query displayName \
             --only-show-errors \
-            -o tsv 2>/dev/null || echo $sp_client_id)
+            -o tsv)
+          signed_in_sp_name=${signed_in_sp_name:-$sp_client_id}
           echo "Logged in to Azure tenant ${sp_tenant_id} with ${signed_in_sp_name}"
-          query="where type =~ 'microsoft.keyvault/vaults' and subscriptionId == '${{ inputs.state_subscription_id }}' and ((tags['caf_tfstate'] =~ '${{ inputs.level }}' and tags['caf_environment'] =~ '${{ inputs.environment }}') or (tags['tfstate'] =~ '${{ inputs.level }}' and tags['environment'] =~ '${{ inputs.environment }}')) | project id"
+          query="\"where type =~ 'microsoft.keyvault/vaults' and subscriptionId == '${{ inputs.state_subscription_id }}' and ((tags['caf_tfstate'] =~ '${{ inputs.level }}' and tags['caf_environment'] =~ '${{ inputs.environment }}') or (tags['tfstate'] =~ '${{ inputs.level }}' and tags['environment'] =~ '${{ inputs.environment }}')) | project id\""
           if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
             echo "Run query: ${query}"
           fi
-          state_key_vault_id=$(az graph query \
-            -q "${query}" \
+          state_key_vault_id=$(+stdval az graph query \
+            -q $query \
             --first 1 \
-            --subscriptions '${{ inputs.state_subscription_id }}' \
+            --subscriptions ${{ inputs.state_subscription_id }} \
             --only-show-errors \
-            --query "data[0].id" \
-            -o tsv 2> >(tee -a $error_file >&2))
+            --query \"data[0].id\" \
+            -o tsv)
           if [ -n "${state_key_vault_id}" ]; then
             state_resource_group_name=$(cut -d/ -f5 <<<"${state_key_vault_id}")
             state_key_vault_name="${state_key_vault_id##*/}"
             echo "Found key vault ${state_key_vault_name}"
-            new_sp_client_id=$(az keyvault secret show \
+            new_sp_client_id=$(+noerr az keyvault secret show \
               --id https://${state_key_vault_name}.vault.azure.net/secrets/sp-client-id \
               --only-show-errors \
-              --query "value" \
-              -o tsv 2>/dev/null || true)
+              --query value \
+              -o tsv)
             if [[ -n "${new_sp_client_id}" && "${new_sp_client_id}" != "${sp_client_id}" ]]; then
               echo "The input client id '${sp_client_id}' is different from key vault client id '${new_sp_client_id}'"
-              new_sp_client_secret=$(az keyvault secret show \
+              new_sp_client_secret=$(+noerr az keyvault secret show \
                 --id https://${state_key_vault_name}.vault.azure.net/secrets/sp-client-secret \
                 --only-show-errors \
-                --query "value" \
-                -o tsv 2>/dev/null || true)
+                --query value \
+                -o tsv)
               if [ -n "${new_sp_client_secret}" ]; then
                 echo "::add-mask::${new_sp_client_secret}"
                 if [ -z "${sp_tenant_id}" ]; then
-                  sp_tenant_id=$(az keyvault secret show \
+                  sp_tenant_id=$(+noerr az keyvault secret show \
                     --id https://${state_key_vault_name}.vault.azure.net/secrets/sp-tenant-id \
                     --only-show-errors \
-                    --query "value" \
-                    -o tsv 2>/dev/null || true)
+                    --query value \
+                    -o tsv)
                 fi
                 echo "Use secrets from key vault ${state_key_vault_name} for Azure login"
-                az login --service-principal \
+                +nostd az login --service-principal \
                   -t $sp_tenant_id \
                   -u $new_sp_client_id \
                   -p $new_sp_client_secret \
-                  --only-show-errors 1> /dev/null 2> >(tee -a $error_file >&2)
-                signed_in_sp_name=$(az ad sp show \
+                  --only-show-errors
+                signed_in_sp_name=$(+stdval az ad sp show \
                   --id $new_sp_client_id \
                   --query displayName \
                   --only-show-errors \
-                  -o tsv 2>/dev/null || echo $new_sp_client_id)
+                  -o tsv)
+                signed_in_sp_name=${signed_in_sp_name:-$new_sp_client_id}
                 echo "Logged in to Azure tenant ${sp_tenant_id} with ${signed_in_sp_name}"
               else
                 echo "::error file=${{ github.action }}::Failed to get https://${state_key_vault_name}.vault.azure.net/secrets/sp-client-secret"
@@ -297,31 +323,34 @@ jobs:
             state_key_vault_name=''
             echo "Found no key vault with tags caf_tfstate='${{ inputs.level }}' and caf_environment='${{ inputs.environment }}'"
           fi
-          signed_in_sp_id=$(az ad sp show \
+          signed_in_sp_id=$(+stdval az ad sp show \
             --id $sp_client_id \
             --query id \
             --only-show-errors \
-            -o tsv 2>/dev/null || true)
-          state_subscription_name=$(az account subscription show \
-            --subscription-id '${{ inputs.state_subscription_id }}' \
+            -o tsv)
+          state_subscription_name=$(+stdval az account subscription show \
+            --subscription-id ${{ inputs.state_subscription_id }} \
             --query displayName \
             --only-show-errors \
-            -o tsv 2>/dev/null || echo '${{ inputs.state_subscription_id }}')
-          active_subscription=$(az account show --query id -o tsv 2>/dev/null || true)
+            -o tsv)
+          state_subscription_name=${state_subscription_name:-$(echo '${{ inputs.state_subscription_id }}')}
+          active_subscription=$(+stdval az account show --query id -o tsv)
           if [ "${active_subscription}" != '${{ inputs.state_subscription_id }}' ]; then
-            az account set -s '${{ inputs.state_subscription_id }}' --only-show-errors 2> >(tee -a $error_file >&2)
+            +std az account set -s ${{ inputs.state_subscription_id }} --only-show-errors
             echo "Changed active subscription to ${state_subscription_name} (${{ inputs.state_subscription_id }})"
           fi
+          target_subscription_name=$(+stdval az account subscription show \
+          --subscription-id ${{ inputs.target_subscription_id }} \
+          --query displayName \
+          --only-show-errors \
+          -o tsv)
+          target_subscription_name=${target_subscription_name:-$(echo '${{ inputs.target_subscription_id }}')}
           echo "state_resource_group_name=${state_resource_group_name}" >> $GITHUB_OUTPUT
           echo "state_key_vault_id=${state_key_vault_id}" >> $GITHUB_OUTPUT
           echo "state_key_vault_name=${state_key_vault_name}" >> $GITHUB_OUTPUT
           echo "signed_in_sp_id=${signed_in_sp_id}" >> $GITHUB_OUTPUT
           echo "signed_in_sp_name=${signed_in_sp_name}" >> $GITHUB_OUTPUT
-          echo "target_subscription_name=$(az account subscription show \
-            --subscription-id '${{ inputs.target_subscription_id }}' \
-            --query displayName \
-            --only-show-errors \
-            -o tsv 2>/dev/null || echo '${{ inputs.target_subscription_id }}')" >> $GITHUB_OUTPUT
+          echo "target_subscription_name=${target_subscription_name}" >> $GITHUB_OUTPUT
           echo "state_subscription_name=${state_subscription_name}" >> $GITHUB_OUTPUT
 
       - name: Find storage account
@@ -331,23 +360,32 @@ jobs:
           set -Eeu
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
-          error_file="${start_path}/logs/stderr.log"
-          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          log_file="${start_path}/logs/steps.log"
+          trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
-            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
+              msg="Error $1 at line $(expr $2 + 1) in '${{ github.action }}': $3"
+              echo "::error file=${{ github.action }},line=$(expr $2 + 1)::$msg"
+              echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >>$4
+            fi
             exit $1
           }
-          query="where type =~ 'microsoft.storage/storageaccounts' and subscriptionId == '${{ inputs.state_subscription_id }}' and ((tags['caf_tfstate'] =~ '${{ inputs.level }}' and tags['caf_environment'] =~ '${{ inputs.environment }}') or (tags['tfstate'] =~ '${{ inputs.level }}' and tags['environment'] =~ '${{ inputs.environment }}')) | project id"
+          +stdval() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 2> >(tee -a $log_file >&2)
+            return ${PIPESTATUS[0]}
+          }
+          query="\"where type =~ 'microsoft.storage/storageaccounts' and subscriptionId == '${{ inputs.state_subscription_id }}' and ((tags['caf_tfstate'] =~ '${{ inputs.level }}' and tags['caf_environment'] =~ '${{ inputs.environment }}') or (tags['tfstate'] =~ '${{ inputs.level }}' and tags['environment'] =~ '${{ inputs.environment }}')) | project id\""
           if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
             echo "Run query: ${query}"
           fi
-          state_storage_account_id=$(az graph query \
-            -q "${query}" \
+          state_storage_account_id=$(+stdval az graph query \
+            -q $query \
             --first 1 \
-            --subscriptions '${{ inputs.state_subscription_id }}' \
+            --subscriptions ${{ inputs.state_subscription_id }} \
             --only-show-errors \
-            --query "data[0].id" \
-            -o tsv 2> >(tee -a $error_file >&2))
+            --query \"data[0].id\" \
+            -o tsv)
           if [ -n "${state_storage_account_id}" ]; then
             state_resource_group_name=$(cut -d/ -f5 <<<"${state_storage_account_id}")
             state_storage_account_name="${state_storage_account_id##*/}"
@@ -369,11 +407,25 @@ jobs:
           set -Eeu
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
-          error_file="${start_path}/logs/stderr.log"
-          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          log_file="${start_path}/logs/steps.log"
+          trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
-            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
+              msg="Error $1 at line $(expr $2 + 1) in '${{ github.action }}': $3"
+              echo "::error file=${{ github.action }},line=$(expr $2 + 1)::$msg"
+              echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >>$4
+            fi
             exit $1
+          }
+          +std() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 1> >(tee -a $log_file) 2> >(tee -a $log_file >&2)
+            return ${PIPESTATUS[0]}
+          }
+          +noerr() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 2>/dev/null || null
+            return 0
           }
           state_resource_group_name='${{ steps.find_az_state_sa.outputs.state_resource_group_name || steps.login.outputs.state_resource_group_name }}'
           if [ -n "${state_resource_group_name}" ]; then
@@ -383,28 +435,29 @@ jobs:
             prefix=$(echo '${{ steps.login.outputs.state_subscription_name }}' | head -c 8 | sed -E 's/[-_\.]+$//g')
             suffix=$(echo '${{ inputs.environment }}' | head -c 6 | sed -E 's/[-_\.]+$//g')
             state_resource_group_name="${prefix}-${suffix}"
-            rg_exists=$(az group exists \
-              --name "${state_resource_group_name}" \
-              --subscription '${{ inputs.state_subscription_id }}' \
+            rg_exists=$(+noerr az group exists \
+              --name $state_resource_group_name \
+              --subscription ${{ inputs.state_subscription_id }} \
               --only-show-errors \
-              -o tsv 2>/dev/null || true)
+              -o tsv)
             if [ "${rg_exists}" == 'true' ]; then
               echo "Found resource group ${state_resource_group_name}"
             elif [[ '${{ github.event_name }}' == 'pull_request'* ]]; then
               echo "Create resource group ${state_resource_group_name}"
-              az group create \
-                --name "${state_resource_group_name}" \
-                --location '${{ inputs.state_location }}' \
+              +std az group create \
+                --name $state_resource_group_name \
+                --location ${{ inputs.state_location }} \
                 --only-show-errors \
-                -o none 2> >(tee -a $error_file >&2)
+                -o none
               sleep 5
-              az group wait -g "${state_resource_group_name}" \
+              +std az group wait \
+                -g $state_resource_group_name \
                 --exists \
                 --timeout 60 \
-                --subscription '${{ inputs.state_subscription_id }}' \
-                --only-show-errors 2> >(tee -a $error_file >&2)
+                --subscription ${{ inputs.state_subscription_id }} \
+                --only-show-errors
             else
-              echo "::error file=${{ github.action }}::Unable to find resource group ${resource_group_name}. It is required for terraform state and plan files." | tee -a $error_file
+              echo "::error file=${{ github.action }}::Unable to find resource group ${resource_group_name}. It is required for terraform state and plan files." | tee -a $log_file
               exit 1
             fi
           fi
@@ -418,11 +471,30 @@ jobs:
           set -Eeu
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
-          error_file="${start_path}/logs/stderr.log"
-          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          log_file="${start_path}/logs/steps.log"
+          trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
-            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
+              msg="Error $1 at line $(expr $2 + 1) in '${{ github.action }}': $3"
+              echo "::error file=${{ github.action }},line=$(expr $2 + 1)::$msg"
+              echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >>$4
+            fi
             exit $1
+          }
+          +std() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 1> >(tee -a $log_file) 2> >(tee -a $log_file >&2)
+            return ${PIPESTATUS[0]}
+          }
+          +noerr() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 2>/dev/null || null
+            return 0
+          }
+          +stdval() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 2> >(tee -a $log_file >&2)
+            return ${PIPESTATUS[0]}
           }
           if [ -n '${{ steps.find_az_state_sa.outputs.state_storage_account_name }}' ]; then
             state_storage_account_name='${{ steps.find_az_state_sa.outputs.state_storage_account_name }}'
@@ -435,67 +507,67 @@ jobs:
             if [ -n '${{ steps.find_az_state_sa.outputs.state_storage_account_id }}' ]; then
               state_storage_account_id='${{ steps.find_az_state_sa.outputs.state_storage_account_id }}'
             else
-              query="where type =~ 'microsoft.storage/storageaccounts' and name == '${state_storage_account_name}' | project id"
+              query="\"where type =~ 'microsoft.storage/storageaccounts' and name == '${state_storage_account_name}' | project id\""
               if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
                 echo "Run query: ${query}"
               fi
-              state_storage_account_id=$(az graph query \
-                -q "${query}" \
+              state_storage_account_id=$(+stdval az graph query \
+                -q $query \
                 --first 1 \
-                --subscriptions '${{ inputs.state_subscription_id }}' \
+                --subscriptions ${{ inputs.state_subscription_id }} \
                 --only-show-errors \
-                --query "data[0].id" \
-                -o tsv 2> >(tee -a $error_file >&2))
+                --query \"data[0].id\" \
+                -o tsv)
             fi
             if [ -n "${state_storage_account_id}" ]; then
               echo "Found storage account ${state_storage_account_name}"
             else
               echo "Create storage account ${state_storage_account_name}"
-              state_storage_account_id=$(az storage account create \
-                -g '${{ steps.az_state_rg.outputs.state_resource_group_name }}' \
-                --name "${state_storage_account_name}" \
-                --location '${{ inputs.state_location }}' \
-                --tags caf_environment='${{ inputs.environment }}' caf_tfstate='${{ inputs.level }}' \
+              state_storage_account_id=$(+stdval az storage account create \
+                -g ${{ steps.az_state_rg.outputs.state_resource_group_name }} \
+                --name $state_storage_account_name \
+                --location ${{ inputs.state_location }} \
+                --tags caf_environment=\"${{ inputs.environment }}\" caf_tfstate=\"${{ inputs.level }}\" \
                 --allow-blob-public-access false \
                 --sku Standard_GRS \
                 --min-tls-version TLS1_2 \
                 --https-only true \
                 --only-show-errors \
                 --query id \
-                -o tsv 2> >(tee -a $error_file >&2))
+                -o tsv)
             fi
-            container_name=$(az storage container list \
-              --account-name "${state_storage_account_name}" \
+            container_name=$(+noerr az storage container list \
+              --account-name $state_storage_account_name \
               --auth-mode login \
               --only-show-errors \
-              --query "[?name=='${{ inputs.state_container }}'].[name]" \
-              -o tsv 2>/dev/null || true)
+              --query \"[?name=='${{ inputs.state_container }}'].[name]\" \
+              -o tsv)
             if [ -z "${container_name}" ]; then
               echo "  ...Create container ${{ inputs.state_container }}"
-              az storage container create \
-                --name '${{ inputs.state_container }}' \
-                --account-name "${state_storage_account_name}" \
+              +std az storage container create \
+                --name ${{ inputs.state_container }} \
+                --account-name $state_storage_account_name \
                 --auth-mode login \
                 --public-access off \
                 --only-show-errors \
-                -o none 2> >(tee -a $error_file >&2)
+                -o none
             fi
             if [ -n '${{ steps.login.outputs.signed_in_sp_id }}' ]; then
-              signed_in_assign_id=$(az role assignment list \
-                --assignee '${{ steps.login.outputs.signed_in_sp_id }}' \
-                --scope "${state_storage_account_id}" \
-                --role 'Storage Blob Data Contributor' \
+              signed_in_assign_id=$(+noerr az role assignment list \
+                --assignee ${{ steps.login.outputs.signed_in_sp_id }} \
+                --scope $state_storage_account_id \
+                --role \"Storage Blob Data Contributor\" \
                 --only-show-errors \
-                --query "[].[id]" \
-                -o tsv 2>/dev/null || true)
+                --query \"[].[id]\" \
+                -o tsv)
               if [ -z "${signed_in_assign_id}" ]; then
                 echo "  ...Add role assignment 'Storage Blob Data Contributor' to '${{ steps.login.outputs.signed_in_sp_name }}' on '${state_storage_account_name}'"
-                az role assignment create \
-                  --role 'Storage Blob Data Contributor' \
-                  --assignee '${{ steps.login.outputs.signed_in_sp_id }}' \
-                  --scope "${state_storage_account_id}" \
+                +std az role assignment create \
+                  --role \"Storage Blob Data Contributor\" \
+                  --assignee ${{ steps.login.outputs.signed_in_sp_id }} \
+                  --scope $state_storage_account_id \
                   --only-show-errors \
-                  -o none 2> >(tee -a $error_file >&2)
+                  -o none
               fi
             else
               echo "::error file=${{ github.action }}::Unable to find service principal from client id ${{ inputs.azure_ad_client_id }}, please add it as 'Storage Blob Data Contributor' on storage account ${state_storage_account_name}."
@@ -514,11 +586,30 @@ jobs:
           set -Eeu
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
-          error_file="${start_path}/logs/stderr.log"
-          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          log_file="${start_path}/logs/steps.log"
+          trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
-            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
+              msg="Error $1 at line $(expr $2 + 1) in '${{ github.action }}': $3"
+              echo "::error file=${{ github.action }},line=$(expr $2 + 1)::$msg"
+              echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >>$4
+            fi
             exit $1
+          }
+          +std() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 1> >(tee -a $log_file) 2> >(tee -a $log_file >&2)
+            return ${PIPESTATUS[0]}
+          }
+          +noerr() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 2>/dev/null || null
+            return 0
+          }
+          +stdval() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 2> >(tee -a $log_file >&2)
+            return ${PIPESTATUS[0]}
           }
           if [ -n '${{ steps.login.outputs.state_key_vault_name }}' ]; then
             state_key_vault_name='${{ steps.login.outputs.state_key_vault_name }}'
@@ -530,30 +621,30 @@ jobs:
             if [ -n '${{ steps.login.outputs.state_key_vault_id }}' ]; then
               state_key_vault_id='${{ steps.login.outputs.state_key_vault_id }}'
             else
-              query="where type =~ 'microsoft.keyvault/vaults' and name == '${state_key_vault_name}' | project id"
+              query="\"where type =~ 'microsoft.keyvault/vaults' and name == '${state_key_vault_name}' | project id\""
               if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
                 echo "Run query: ${query}"
               fi
-              state_key_vault_id=$(az graph query \
-                -q "${query}" \
+              state_key_vault_id=$(+stdval az graph query \
+                -q $query \
                 --first 1 \
-                --subscriptions '${{ inputs.state_subscription_id }}' \
+                --subscriptions ${{ inputs.state_subscription_id }} \
                 --only-show-errors \
-                --query "data[0].id" \
-                -o tsv 2> >(tee -a $error_file >&2))
+                --query \"data[0].id\" \
+                -o tsv)
             fi
             if [ -n "${state_key_vault_id}" ]; then
               echo "Found key vault ${state_key_vault_name}"
             else
               echo "Create key vault ${state_key_vault_name}"
-              state_key_vault_id=$(az keyvault create \
-                -g '${{ steps.az_state_rg.outputs.state_resource_group_name }}' \
-                --name "${state_key_vault_name}" \
-                --location '${{ inputs.state_location }}' \
-                --tags caf_environment='${{ inputs.environment }}' caf_tfstate='${{ inputs.level }}' \
+              state_key_vault_id=$(+stdval az keyvault create \
+                -g ${{ steps.az_state_rg.outputs.state_resource_group_name }} \
+                --name $state_key_vault_name \
+                --location ${{ inputs.state_location }} \
+                --tags caf_environment=\"${{ inputs.environment }}\" caf_tfstate=\"${{ inputs.level }}\" \
                 --only-show-errors \
                 --query id \
-                -o tsv 2> >(tee -a $error_file >&2))
+                -o tsv)
             fi
             secret_list=('tenant-id' 'subscription-id' 'sp-tenant-id' 'sp-client-id' 'sp-client-secret')
             secret_value_list=('${{ inputs.azure_tenant_id }}' \
@@ -562,19 +653,19 @@ jobs:
               '${{ inputs.azure_ad_client_id }}' \
               '${{ secrets.AZURE_AD_CLIENT_SECRET }}')
             for i in "${!secret_list[@]}"; do
-              secret_id=$(az keyvault secret list \
-                --vault-name "${state_key_vault_name}" \
+              secret_id=$(+noerr az keyvault secret list \
+                --vault-name $state_key_vault_name \
                 --only-show-errors \
-                --query "[?name=='${secret_list[i]}'].[id]" \
-                -o tsv 2>/dev/null || true)
+                --query \"[?name=='${secret_list[i]}'].[id]\" \
+                -o tsv)
               if [ -z "${secret_id}" ]; then
                 echo "  ...Create secret '${secret_list[i]}'"
-                az keyvault secret set \
-                  --name "${secret_list[i]}" \
-                  --vault-name "${state_key_vault_name}" \
-                  --value "${secret_value_list[i]}" \
+                +std az keyvault secret set \
+                  --name $secret_list[i] \
+                  --vault-name $state_key_vault_name \
+                  --value $secret_value_list[i] \
                   --only-show-errors \
-                  -o none 2> >(tee -a $error_file >&2)
+                  -o none
               fi
             done
           else
@@ -591,144 +682,163 @@ jobs:
           set -Eeu
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
-          error_file="${start_path}/logs/stderr.log"
-          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          log_file="${start_path}/logs/steps.log"
+          trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
-            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
+              msg="Error $1 at line $(expr $2 + 1) in '${{ github.action }}': $3"
+              echo "::error file=${{ github.action }},line=$(expr $2 + 1)::$msg"
+              echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >>$4
+            fi
             exit $1
           }
+          +std() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 1> >(tee -a $log_file) 2> >(tee -a $log_file >&2)
+            return ${PIPESTATUS[0]}
+          }
+          +noerr() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 2>/dev/null || null
+            return 0
+          }
+          +stdval() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 2> >(tee -a $log_file >&2)
+            return ${PIPESTATUS[0]}
+          }
           if [[ '${{ github.event_name }}' == 'pull_request'* ]]; then
-            query="where type =~ 'microsoft.dataprotection/backupvaults' and name == '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' | project id"
+            query="\"where type =~ 'microsoft.dataprotection/backupvaults' and name == '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' | project id\""
             if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
               echo "Run query: ${query}"
             fi
-            bv_id=$(az graph query \
-              -q "${query}" \
+            bv_id=$(+stdval az graph query \
+              -q $query \
               --first 1 \
-              --subscriptions '${{ inputs.state_subscription_id }}' \
+              --subscriptions ${{ inputs.state_subscription_id }} \
               --only-show-errors \
-              --query "data[0].id" \
-              -o tsv 2> >(tee -a $error_file >&2))
+              --query \"data[0].id\" \
+              -o tsv)
             if [ -n "${bv_id}" ]; then
               echo "Found backup vault ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv"
             else
               echo "Create backup vault ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv"
-              bv_id=$(az dataprotection backup-vault create \
-                -g '${{ steps.az_state_rg.outputs.state_resource_group_name }}' \
-                --vault-name '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' \
-                --location '${{ inputs.state_location }}' \
-                --storage-settings datastore-type="VaultStore" type="GeoRedundant" \
-                --type 'SystemAssigned' \
-                --azure-monitor-alerts-for-job-failures 'Enabled' \
+              bv_id=$(+stdval az dataprotection backup-vault create \
+                -g ${{ steps.az_state_rg.outputs.state_resource_group_name }} \
+                --vault-name ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv \
+                --location ${{ inputs.state_location }} \
+                --storage-settings datastore-type=\"VaultStore\" type=\"GeoRedundant\" \
+                --type SystemAssigned \
+                --azure-monitor-alerts-for-job-failures Enabled \
                 --only-show-errors \
                 --query id \
-                -o tsv 2> >(tee -a $error_file >&2))
+                -o tsv)
             fi
-            query="where type =~ 'microsoft.dataprotection/backupvaults' and name == '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' | project identity.principalId"
+            query="\"where type =~ 'microsoft.dataprotection/backupvaults' and name == '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' | project identity.principalId\""
             if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
               echo "Run query: ${query}"
             fi
-            bv_principalId=$(az graph query \
-              -q "${query}" \
+            bv_principalId=$(+stdval az graph query \
+              -q $query \
               --first 1 \
-              --subscriptions '${{ inputs.state_subscription_id }}' \
+              --subscriptions ${{ inputs.state_subscription_id }} \
               --only-show-errors \
-              --query "data[0].identity_principalId" \
-              -o tsv 2>/dev/null || true)
+              --query \"data[0].identity_principalId\" \
+              -o tsv)
             if [ -n "${bv_principalId}" ]; then
-              bv_assign_id=$(az role assignment list \
-                --assignee "${bv_principalId}" \
-                --scope '${{ steps.az_state_sa.outputs.state_storage_account_id }}' \
-                --role "Storage Account Backup Contributor" \
+              bv_assign_id=$(+noerr az role assignment list \
+                --assignee $bv_principalId \
+                --scope ${{ steps.az_state_sa.outputs.state_storage_account_id }} \
+                --role \"Storage Account Backup Contributor\" \
                 --only-show-errors \
-                --query "[].[id]" \
-                -o tsv 2>/dev/null || true)
+                --query \"[].[id]\" \
+                -o tsv)
               if [ -z "${bv_assign_id}" ]; then
                 echo "  ...Add role assignment 'Storage Account Backup Contributor' to '${bv_principalId}' on '${{ steps.az_state_sa.outputs.state_storage_account_name }}'"
-                bv_principalName=$(az ad sp show \
-                  --id "${bv_principalId}" \
+                bv_principalName=$(+noerr az ad sp show \
+                  --id $bv_principalId \
                   --only-show-errors \
                   --query displayName \
-                  -o tsv 2>/dev/null || true)
+                  -o tsv)
                 if [ -z "${bv_principalName}" ]; then
                   sleep 10
-                  bv_principalName=$(az ad sp show \
-                    --id "${bv_principalId}" \
+                  bv_principalName=$(+noerr az ad sp show \
+                    --id $bv_principalId \
                     --only-show-errors \
                     --query displayName \
-                    -o tsv 2>/dev/null || true)
+                    -o tsv)
                   if [ -z "${bv_principalName}" ]; then
                     sleep 30
-                    bv_principalName=$(az ad sp show \
-                      --id "${bv_principalId}" \
+                    bv_principalName=$(+noerr az ad sp show \
+                      --id $bv_principalId \
                       --only-show-errors \
                       --query displayName \
-                      -o tsv 2>/dev/null || true)
+                      -o tsv)
                     if [ -z "${bv_principalName}" ]; then
                       sleep 60
                     fi
                   fi
                 fi
-                az role assignment create \
-                  --role "Storage Account Backup Contributor" \
-                  --assignee "${bv_principalId}" \
-                  --scope '${{ steps.az_state_sa.outputs.state_storage_account_id }}' \
+                +std az role assignment create \
+                  --role \"Storage Account Backup Contributor\" \
+                  --assignee $bv_principalId \
+                  --scope ${{ steps.az_state_sa.outputs.state_storage_account_id }} \
                   --only-show-errors \
-                  -o none 2> >(tee -a $error_file >&2)
+                  -o none
               fi
             else
               echo "::warning file=${{ github.action }}::Unable to find the backup vault identity, please add the backup vault as 'Storage Account Backup Contributor' on storage account ${{ steps.az_state_sa.outputs.state_storage_account_name }}."
               exit
             fi
-            bvp_id=$(az dataprotection backup-policy list \
-              -g '${{ steps.az_state_rg.outputs.state_resource_group_name }}' \
-              --vault-name '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' \
+            bvp_id=$(+noerr az dataprotection backup-policy list \
+              -g ${{ steps.az_state_rg.outputs.state_resource_group_name }} \
+              --vault-name ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv \
               --only-show-errors \
-              --query "[?name=='BlobMonthly'].[id]" \
-              -o tsv 2>/dev/null || true)
+              --query \"[?name=='BlobMonthly'].[id]\" \
+              -o tsv)
             if [ -z "${bvp_id}" ]; then
-              bvp_definition=$(az dataprotection backup-policy get-default-policy-template \
+              bvp_definition=$(+stdval az dataprotection backup-policy get-default-policy-template \
                 --datasource-type AzureBlob \
                 --only-show-errors \
-                -o json 2> >(tee -a $error_file >&2))
+                -o json)
               if [ -n "${bvp_definition}" ]; then
                 echo "  ...Create backup policy BlobMonthly"
-                bvp_id=$(az dataprotection backup-policy create \
-                  -g '${{ steps.az_state_rg.outputs.state_resource_group_name }}' \
-                  --vault-name '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' \
-                  --backup-policy-name "BlobMonthly" \
-                  --policy "${bvp_definition}" \
+                bvp_id=$(+stdval az dataprotection backup-policy create \
+                  -g ${{ steps.az_state_rg.outputs.state_resource_group_name }} \
+                  --vault-name ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv \
+                  --backup-policy-name BlobMonthly \
+                  --policy \"${bvp_definition}\" \
                   --only-show-errors \
                   --query id \
-                  -o tsv 2> >(tee -a $error_file >&2))
+                  -o tsv)
               else
                 echo "::error file=${{ github.action }}::Unable to get default backup policy template for AzureBlob."
                 exit 1
               fi
             fi
             if [ -n "${bvp_id}" ]; then
-              bvi_id=$(az dataprotection backup-instance list \
-                -g '${{ steps.az_state_rg.outputs.state_resource_group_name }}' \
-                --vault-name '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' \
+              bvi_id=$(+noerr az dataprotection backup-instance list \
+                -g ${{ steps.az_state_rg.outputs.state_resource_group_name }} \
+                --vault-name ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv \
                 --only-show-errors \
-                --query "[?properties.friendlyName=='${{ steps.az_state_sa.outputs.state_storage_account_name }}'].[id]" \
-                -o tsv 2>/dev/null || true)
+                --query \"[?properties.friendlyName=='${{ steps.az_state_sa.outputs.state_storage_account_name }}'].[id]\" \
+                -o tsv)
               if [ -z "${bvi_id}" ]; then
                 echo "  ...Create instance request for AzureBlobs in ${{ steps.az_state_sa.outputs.state_storage_account_name }}"
-                bvi_request=$(az dataprotection backup-instance initialize \
-                  -l '${{ inputs.state_location }}' \
-                  --tags caf_environment='${{ inputs.environment }}' caf_tfstate='${{ inputs.level }}' \
-                  --datasource-type "AzureBlob" \
-                  --policy-id "${bvp_id}" \
-                  --datasource-id '${{ steps.az_state_sa.outputs.state_storage_account_id }}' \
-                  --only-show-errors 2> >(tee -a $error_file >&2))
+                bvi_request=$(+stdval az dataprotection backup-instance initialize \
+                  -l ${{ inputs.state_location }} \
+                  --tags caf_environment=\"${{ inputs.environment }}\" caf_tfstate=\"${{ inputs.level }}\" \
+                  --datasource-type AzureBlob \
+                  --policy-id $bvp_id \
+                  --datasource-id ${{ steps.az_state_sa.outputs.state_storage_account_id }} \
+                  --only-show-errors)
                 echo "  ...Create instance"
-                az dataprotection backup-instance create \
-                  -g '${{ steps.az_state_rg.outputs.state_resource_group_name }}' \
-                  --vault-name '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' \
-                  --backup-instance "${bvi_request}" \
+                +std az dataprotection backup-instance create \
+                  -g ${{ steps.az_state_rg.outputs.state_resource_group_name }} \
+                  --vault-name ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv \
+                  --backup-instance $bvi_request \
                   --only-show-errors \
-                  -o none 2> >(tee -a $error_file >&2)
+                  -o none
               fi
             else
               echo "::error file=${{ github.action }}::Unable to create a backup policy for AzureBlob, please manually configure ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv to protect ${{ steps.az_state_sa.outputs.state_storage_account_name }} and ensure that ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv is 'Storage Account Backup Contributor' on ${{ steps.az_state_sa.outputs.state_storage_account_name }}."
@@ -751,48 +861,62 @@ jobs:
           set -Eeu
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
-          error_file="${start_path}/logs/stderr.log"
-          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          log_file="${start_path}/logs/steps.log"
+          trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
-            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
+              msg="Error $1 at line $(expr $2 + 1) in '${{ github.action }}': $3"
+              echo "::error file=${{ github.action }},line=$(expr $2 + 1)::$msg"
+              echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >>$4
+            fi
             exit $1
+          }
+          +std() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 1> >(tee -a $log_file) 2> >(tee -a $log_file >&2)
+            return ${PIPESTATUS[0]}
+          }
+          +noerr() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 2>/dev/null || null
+            return 0
           }
           saved_plan_exist='false'
           apply_exist='false'
           saved_plan_sha=''
           state_storage_account_name='${{ steps.az_state_sa.outputs.state_storage_account_name }}'
-          container_name=$(az storage container list \
-            --account-name "${state_storage_account_name}" \
+          container_name=$(+noerr az storage container list \
+            --account-name $state_storage_account_name \
             --auth-mode login \
             --only-show-errors \
-            --query "[?name=='${PLAN_CONTAINER}'].[name]" \
-            -o tsv 2>/dev/null || true)
+            --query \"[?name=='${PLAN_CONTAINER}'].[name]\" \
+            -o tsv)
           if [ -z "${container_name}" ]; then
             echo "No plan found, the container ${PLAN_CONTAINER} don't exist in ${state_storage_account_name}"
           else
             echo "Found container ${PLAN_CONTAINER} in ${state_storage_account_name}"
             blob_list=('tfplan' 'tfplan.SHA')
             for i in "${!blob_list[@]}"; do
-              blob_exists=$(az storage blob exists \
-                --name "${PLAN_FOLDER}/${blob_list[i]}" \
-                --container-name "${PLAN_CONTAINER}" \
-                --account-name "${state_storage_account_name}" \
+              blob_exists=$(+noerr az storage blob exists \
+                --name \"${PLAN_FOLDER}/${blob_list[i]}\" \
+                --container-name $PLAN_CONTAINER \
+                --account-name $state_storage_account_name \
                 --auth-mode login \
                 --only-show-errors \
-                --query "exists" \
-                -o tsv 2>/dev/null || true)
+                --query exists \
+                -o tsv)
               if [ "${blob_exists}" == 'true' ]; then
                 echo "Download https://${state_storage_account_name}.blob.core.windows.net/${PLAN_CONTAINER}/${PLAN_FOLDER}/${blob_list[i]}"
-                az storage blob download \
-                  --name "${PLAN_FOLDER}/${blob_list[i]}" \
-                  --container-name "${PLAN_CONTAINER}" \
-                  --file "${start_path}/${blob_list[i]}" \
-                  --account-name "${state_storage_account_name}" \
+                +std az storage blob download \
+                  --name \"${PLAN_FOLDER}/${blob_list[i]}\" \
+                  --container-name $PLAN_CONTAINER \
+                  --file \"${start_path}/${blob_list[i]}\" \
+                  --account-name $state_storage_account_name \
                   --auth-mode login \
                   --no-progress \
                   --overwrite \
                   --only-show-errors \
-                  -o none 2> >(tee -a $error_file >&2)
+                  -o none
               else
                 echo "Unable to find https://${state_storage_account_name}.blob.core.windows.net/${PLAN_CONTAINER}/${PLAN_FOLDER}/${blob_list[i]}"
               fi
@@ -803,26 +927,26 @@ jobs:
               echo "Found saved plan SHA: ${saved_plan_sha}"
               if [[ '${{ github.event_name }}' == 'issue_comment' && $COMMENT_BODY == *'/apply'* ]]; then
                 blob="tfapply.SHA"
-                blob_exists=$(az storage blob exists \
-                  --name "${PLAN_FOLDER}/${blob}" \
-                  --container-name "${PLAN_CONTAINER}" \
-                  --account-name "${state_storage_account_name}" \
+                blob_exists=$(+noerr az storage blob exists \
+                  --name \"${PLAN_FOLDER}/${blob}\" \
+                  --container-name $PLAN_CONTAINER \
+                  --account-name $state_storage_account_name \
                   --auth-mode login \
                   --only-show-errors \
-                  --query "exists" \
-                  -o tsv 2>/dev/null || true)
+                  --query exists \
+                  -o tsv)
                 if [ "${blob_exists}" == 'true' ]; then
                   echo "Download https://${state_storage_account_name}.blob.core.windows.net/${PLAN_CONTAINER}/${PLAN_FOLDER}/${blob}"
-                  az storage blob download \
-                    --name "${PLAN_FOLDER}/${blob}" \
-                    --container-name "${PLAN_CONTAINER}" \
-                    --file "${start_path}/${blob}" \
-                    --account-name "${state_storage_account_name}" \
+                  +std az storage blob download \
+                    --name \"${PLAN_FOLDER}/${blob}\" \
+                    --container-name $PLAN_CONTAINER \
+                    --file \"${start_path}/${blob}\" \
+                    --account-name $state_storage_account_name \
                     --auth-mode login \
                     --no-progress \
                     --overwrite \
                     --only-show-errors \
-                    -o none 2> >(tee -a $error_file >&2)
+                    -o none
                   applySHA=$(cat ${start_path}/${blob})
                   if [ -n "${applySHA}" ]; then
                     if [ "${saved_plan_sha}" == "${applySHA}" ]; then
@@ -871,18 +995,27 @@ jobs:
           start_path=$(readlink -f .)
           code_path=$(readlink -f src/${{ inputs.code_path }})
           mkdir -p ${start_path}/logs
-          error_file="${start_path}/logs/stderr.log"
-          trap 'error_handler $? $LINENO $BASH_COMMAND' ERR
+          log_file="${start_path}/logs/steps.log"
+          trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
-            echo "::error file=${{ github.action }},line=$(expr $2 + 1)::Error at line $(expr $2 + 1) in '${{ github.action }}': $3"
+            if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
+              msg="Error $1 at line $(expr $2 + 1) in '${{ github.action }}': $3"
+              echo "::error file=${{ github.action }},line=$(expr $2 + 1)::$msg"
+              echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >>$4
+            fi
             exit $1
+          }
+          +stdval() {
+            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+            eval "$@" 2> >(tee -a $log_file >&2)
+            return ${PIPESTATUS[0]}
           }
           if [ '${{ steps.saved_plan.outputs.sha }}' == '${{ github.event.pull_request.head.sha }}' ]; then
             echo "Plan has not changed; saved plan SHA is equal to head"
           else
             cd $code_path
             echo "Check diff between SHA ${{ steps.saved_plan.outputs.sha }} and ${{ github.event.pull_request.head.sha }}"
-            diff_all=$(git diff --name-only --diff-filter=ACMRT ${{ steps.saved_plan.outputs.sha }} ${{ github.event.pull_request.head.sha }} 2> >(tee -a $error_file >&2))
+            diff_all=$(+stdval git diff --name-only --diff-filter=ACMRT ${{ steps.saved_plan.outputs.sha }} ${{ github.event.pull_request.head.sha }})
             if [ -z "${diff_all}" ]; then
               echo "No files have changed for this commit."
             else
@@ -1023,22 +1156,22 @@ jobs:
             if (STATUS == 'failed') {
               const fs = require('fs');
               const path = require('node:path');
-              const error_file=path.join(process.cwd(), 'logs', 'stderr.log');
+              const log_file=path.join(process.cwd(), 'logs', 'step.log');
               let std_error = '', std_error_time = '';
               try {
-                if (fs.existsSync(error_file)) {
-                  const data = fs.readFileSync(error_file, 'utf8');
+                if (fs.existsSync(log_file)) {
+                  const data = fs.readFileSync(log_file, 'utf8');
                   const data_clean = data.replace(ansi_regex, '').trim().replace(/”/g, '"');
                   std_error = data_clean.length > 65000 ? `${data_clean.toString().substring(0, 30000).trim()}
                   ...
                   ... lines removed because text is too long
                   ...
                   ${data_clean.toString().substring(data_clean.length - 10000).trim()}` : data_clean;
-                  std_error_time = fs.statSync(error_file).mtime.toLocaleTimeString('${{ inputs.date_time_language_format }}', {timeZone: '${{ inputs.time_zone }}'});
+                  std_error_time = fs.statSync(log_file).mtime.toLocaleTimeString('${{ inputs.date_time_language_format }}', {timeZone: '${{ inputs.time_zone }}'});
                 }
               } catch (e) {
                 if (!e.message.includes('no such file or directory')) {
-                  core.warning(`Failed to read file ${error_file}: ${e}`);
+                  core.warning(`Failed to read file ${log_file}: ${e}`);
                 }
               }
               body = `## Job failed ⛔\n\n${details}\n\n${STEP_ERROR}`;
