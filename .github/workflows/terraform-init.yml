@@ -624,11 +624,16 @@ jobs:
                 --query id \
                 -o tsv 2> >(tee -a $error_file >&2))
             fi
-            bv_principalId=$(az dataprotection backup-vault show \
-              -g '${{ steps.az_state_rg.outputs.state_resource_group_name }}' \
-              --vault-name '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' \
+            query="where type =~ 'microsoft.dataprotection/backupvaults' and name == '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' | project identity.principalId"
+            if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
+              echo "Run query: ${query}"
+            fi
+            bv_principalId=$(az graph query \
+              -q "${query}" \
+              --first 1 \
+              --subscriptions '${{ inputs.state_subscription_id }}' \
               --only-show-errors \
-              --query identity.principalId \
+              --query "data[0].identity_principalId" \
               -o tsv 2>/dev/null || true)
             if [ -n "${bv_principalId}" ]; then
               bv_assign_id=$(az role assignment list \
