@@ -295,7 +295,7 @@ jobs:
               repo: context.repo.repo,
             };
             let comment_id = isNaN('${{ github.event.comment.id }}') ? 0 : +'${{ github.event.comment.id }}';
-            let body = `## Job started ⌛\n\nCommit ${{ steps.pull_request_values.outputs.head_sha }}: a [workflow job](${run_url}) has started to evaluate`;
+            let body = `## Job started ⌛\n\nCommit ${{ steps.pull_request_values.outputs.head_sha }}: a [workflow job #${context.runNumber}](${run_url}) has started to evaluate`;
             if (context.eventName == 'issue_comment') {
               body = `${COMMENT_BODY}\n\n${body} this comment...`;
             } else {
