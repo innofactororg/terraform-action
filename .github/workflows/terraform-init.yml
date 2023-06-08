@@ -269,7 +269,7 @@ jobs:
             -o tsv)
           signed_in_sp_name=${signed_in_sp_name:-$sp_client_id}
           echo "Logged in to Azure tenant ${sp_tenant_id} with ${signed_in_sp_name}"
-          query="\"where type =~ 'microsoft.keyvault/vaults' and subscriptionId == '${{ inputs.state_subscription_id }}' and ((tags['caf_tfstate'] =~ '${{ inputs.level }}' and tags['caf_environment'] =~ '${{ inputs.environment }}') or (tags['tfstate'] =~ '${{ inputs.level }}' and tags['environment'] =~ '${{ inputs.environment }}')) | project id\""
+          query="\"where type =~ \'microsoft.keyvault/vaults\' and subscriptionId == \'${{ inputs.state_subscription_id }}\' and ((tags[\'caf_tfstate\'] =~ \'${{ inputs.level }}\' and tags[\'caf_environment\'] =~ \'${{ inputs.environment }}\') or (tags[\'tfstate\'] =~ \'${{ inputs.level }}\' and tags[\'environment\'] =~ \'${{ inputs.environment }}\')) | project id\""
           if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
             echo "Run query: ${query}"
           fi
@@ -381,7 +381,7 @@ jobs:
             eval "$@" 2> >(tee -a $log_file >&2)
             return ${PIPESTATUS[0]}
           }
-          query="\"where type =~ 'microsoft.storage/storageaccounts' and subscriptionId == '${{ inputs.state_subscription_id }}' and ((tags['caf_tfstate'] =~ '${{ inputs.level }}' and tags['caf_environment'] =~ '${{ inputs.environment }}') or (tags['tfstate'] =~ '${{ inputs.level }}' and tags['environment'] =~ '${{ inputs.environment }}')) | project id\""
+          query="\"where type =~ \'microsoft.storage/storageaccounts\' and subscriptionId == \'${{ inputs.state_subscription_id }}\' and ((tags[\'caf_tfstate\'] =~ \'${{ inputs.level }}\' and tags[\'caf_environment\'] =~ \'${{ inputs.environment }}\') or (tags[\'tfstate\'] =~ \'${{ inputs.level }}\' and tags[\'environment\'] =~ \'${{ inputs.environment }}\')) | project id\""
           if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
             echo "Run query: ${query}"
           fi
@@ -513,7 +513,7 @@ jobs:
             if [ -n '${{ steps.find_az_state_sa.outputs.state_storage_account_id }}' ]; then
               state_storage_account_id='${{ steps.find_az_state_sa.outputs.state_storage_account_id }}'
             else
-              query="\"where type =~ 'microsoft.storage/storageaccounts' and name == '${state_storage_account_name}' | project id\""
+              query="\"where type =~ \'microsoft.storage/storageaccounts\' and name == \'${state_storage_account_name}\' | project id\""
               if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
                 echo "Run query: ${query}"
               fi
@@ -546,7 +546,7 @@ jobs:
               --account-name $state_storage_account_name \
               --auth-mode login \
               --only-show-errors \
-              --query \"[?name=='${{ inputs.state_container }}'].[name]\" \
+              --query \"[?name==\'${{ inputs.state_container }}\'].[name]\" \
               -o tsv)
             if [ -z "${container_name}" ]; then
               echo "  ...Create container ${{ inputs.state_container }}"
@@ -627,7 +627,7 @@ jobs:
             if [ -n '${{ steps.login.outputs.state_key_vault_id }}' ]; then
               state_key_vault_id='${{ steps.login.outputs.state_key_vault_id }}'
             else
-              query="\"where type =~ 'microsoft.keyvault/vaults' and name == '${state_key_vault_name}' | project id\""
+              query="\"where type =~ \'microsoft.keyvault/vaults\' and name == \'${state_key_vault_name}\' | project id\""
               if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
                 echo "Run query: ${query}"
               fi
@@ -662,7 +662,7 @@ jobs:
               secret_id=$(+cmdnoerr az keyvault secret list \
                 --vault-name $state_key_vault_name \
                 --only-show-errors \
-                --query \"[?name=='${secret_list[i]}'].[id]\" \
+                --query \"[?name==\'${secret_list[i]}\'].[id]\" \
                 -o tsv)
               if [ -z "${secret_id}" ]; then
                 echo "  ...Create secret '${secret_list[i]}'"
@@ -714,7 +714,7 @@ jobs:
             return ${PIPESTATUS[0]}
           }
           if [[ '${{ github.event_name }}' == 'pull_request'* ]]; then
-            query="\"where type =~ 'microsoft.dataprotection/backupvaults' and name == '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' | project id\""
+            query="\"where type =~ \'microsoft.dataprotection/backupvaults\' and name == \'${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv\' | project id\""
             if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
               echo "Run query: ${query}"
             fi
@@ -740,7 +740,7 @@ jobs:
                 --query id \
                 -o tsv)
             fi
-            query="\"where type =~ 'microsoft.dataprotection/backupvaults' and name == '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' | project identity.principalId\""
+            query="\"where type =~ \'microsoft.dataprotection/backupvaults\' and name == \'${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv\' | project identity.principalId\""
             if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
               echo "Run query: ${query}"
             fi
@@ -800,11 +800,11 @@ jobs:
               -g ${{ steps.az_state_rg.outputs.state_resource_group_name }} \
               --vault-name ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv \
               --only-show-errors \
-              --query \"[?name=='BlobMonthly'].[id]\" \
+              --query \"[?name==\'BlobMonthly\'].[id]\" \
               -o tsv)
             if [ -z "${bvp_id}" ]; then
               bvp_definition=$(+cmdval az dataprotection backup-policy get-default-policy-template \
-                --datasource-type AzureBlob \
+                --datasource-type \"AzureBlob\" \
                 --only-show-errors \
                 -o json)
               if [ -n "${bvp_definition}" ]; then
@@ -828,7 +828,7 @@ jobs:
                 -g ${{ steps.az_state_rg.outputs.state_resource_group_name }} \
                 --vault-name ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv \
                 --only-show-errors \
-                --query \"[?properties.friendlyName=='${{ steps.az_state_sa.outputs.state_storage_account_name }}'].[id]\" \
+                --query \"[?properties.friendlyName==\'${{ steps.az_state_sa.outputs.state_storage_account_name }}\'].[id]\" \
                 -o tsv)
               if [ -z "${bvi_id}" ]; then
                 echo "  ...Create instance request for AzureBlobs in ${{ steps.az_state_sa.outputs.state_storage_account_name }}"
@@ -897,7 +897,7 @@ jobs:
             --account-name $state_storage_account_name \
             --auth-mode login \
             --only-show-errors \
-            --query \"[?name=='${PLAN_CONTAINER}'].[name]\" \
+            --query \"[?name==\'${PLAN_CONTAINER}\'].[name]\" \
             -o tsv)
           if [ -z "${container_name}" ]; then
             echo "No plan found, the container ${PLAN_CONTAINER} don't exist in ${state_storage_account_name}"

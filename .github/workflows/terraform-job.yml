@@ -1002,7 +1002,7 @@ jobs:
             --account-name $state_storage_account_name \
             --auth-mode login \
             --only-show-errors \
-            --query \"[?name=='${PLAN_CONTAINER}'].[name]\" \
+            --query \"[?name==\'${PLAN_CONTAINER}\'].[name]\" \
             -o tsv)
           if [ -z "${container_name}" ]; then
             +cmdstd az storage container create \
