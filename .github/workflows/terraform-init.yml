@@ -806,7 +806,7 @@ jobs:
                 bvp_id=$(+stdval az dataprotection backup-policy create \
                   -g ${{ steps.az_state_rg.outputs.state_resource_group_name }} \
                   --vault-name ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv \
-                  --backup-policy-name BlobMonthly \
+                  --backup-policy-name \"BlobMonthly\" \
                   --policy \"${bvp_definition}\" \
                   --only-show-errors \
                   --query id \
@@ -828,7 +828,7 @@ jobs:
                 bvi_request=$(+stdval az dataprotection backup-instance initialize \
                   -l ${{ inputs.state_location }} \
                   --tags caf_environment=\"${{ inputs.environment }}\" caf_tfstate=\"${{ inputs.level }}\" \
-                  --datasource-type AzureBlob \
+                  --datasource-type \"AzureBlob\" \
                   --policy-id $bvp_id \
                   --datasource-id ${{ steps.az_state_sa.outputs.state_storage_account_id }} \
                   --only-show-errors)
