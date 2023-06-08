@@ -200,7 +200,7 @@ jobs:
         if: >
           github.event_name == 'issue_comment' &&
           contains(github.event.comment.body, '/apply')
-        uses: innofactororg/github-action-check-pull@feature/requireapprovedreview
+        uses: innofactororg/github-action-check-pull@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           require_codeowners_file: ${{ inputs.require_codeowners_file_for_apply }}
