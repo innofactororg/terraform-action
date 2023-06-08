@@ -73,6 +73,11 @@ on:
         required: false
         default: true
         type: boolean
+      require_approved_review_for_apply:
+        description: "Check that at least one approved review exist for the pull request."
+        required: false
+        default: true
+        type: boolean
       required_mergeable_state_for_apply:
         description: "Check that the pull request mergable state is in one of the specified states."
         required: false
@@ -203,6 +208,7 @@ jobs:
           require_code_owner_review: ${{ inputs.require_code_owner_review_for_apply }}
           require_codeteams_file: ${{ inputs.require_codeteams_file_for_apply }}
           require_code_team_review: ${{ inputs.require_code_team_review_for_apply }}
+          require_approved_review: ${{ inputs.require_approved_review_for_apply }}
           required_mergeable_state: ${{ inputs.required_mergeable_state_for_apply }}
 
       - name: Log in to Azure
