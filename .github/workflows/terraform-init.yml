@@ -661,9 +661,9 @@ jobs:
               if [ -z "${secret_id}" ]; then
                 echo "  ...Create secret '${secret_list[i]}'"
                 +std az keyvault secret set \
-                  --name $secret_list[i] \
+                  --name ${secret_list[i]} \
                   --vault-name $state_key_vault_name \
-                  --value $secret_value_list[i] \
+                  --value ${secret_value_list[i]} \
                   --only-show-errors \
                   -o none
               fi
