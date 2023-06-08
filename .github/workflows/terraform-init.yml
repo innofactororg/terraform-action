@@ -1054,6 +1054,7 @@ jobs:
           message='The saved plan is up to date. No terraform changes found in the commits since last saved plan.'
           echo $message
           echo "reason=${message}" >> $GITHUB_OUTPUT
+          exit 1
 
       - name: Deny apply if plan missing or applied
         id: deny_apply
@@ -1072,10 +1073,10 @@ jobs:
           fi
           echo $message
           echo "reason=${message}" >> $GITHUB_OUTPUT
+          exit 1
 
       - name: Parse terraform command and arguments
         id: parse_command
-        if: steps.deny_plan.outputs.reason == '' && steps.deny_apply.outputs.reason == ''
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
