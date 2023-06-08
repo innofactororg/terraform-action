@@ -803,6 +803,8 @@ jobs:
                 -o json)
               if [ -n "${bvp_definition}" ]; then
                 echo "  ...Create backup policy BlobMonthly"
+                echo $bvp_definition
+                bvp_definition=$(echo $bvp_definition | sed 's/"/\\"/g')
                 bvp_id=$(+cmdval az dataprotection backup-policy create \
                   -g ${{ steps.az_state_rg.outputs.state_resource_group_name }} \
                   --vault-name ${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv \
