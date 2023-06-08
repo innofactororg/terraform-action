@@ -456,33 +456,33 @@ jobs:
             fi
             exit $1
           }
-          +std() {
-            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+          +cmdstd() {
+            echo "${@:1:4}" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
             eval "$@" 1> >(tee -a $log_file) 2> >(tee -a $log_file >&2)
             return ${PIPESTATUS[0]}
           }
-          +noerr() {
-            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+          +cmdnoerr() {
+            echo "${@:1:4}" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
             eval "$@" 2>/dev/null || true
             return 0
           }
-          +nostd() {
-            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+          +cmdnostd() {
+            echo "${@:1:4}" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
             eval "$@" 1> /dev/null 2> >(tee -a $log_file >&2)
             return ${PIPESTATUS[0]}
           }
-          +stdval() {
-            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+          +cmdval() {
+            echo "${@:1:4}" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
             eval "$@" 2> >(tee -a $log_file >&2)
             return ${PIPESTATUS[0]}
           }
-          +std az config set extension.use_dynamic_install=yes_without_prompt --only-show-errors
-          +std az config set core.display_survey_message=false --only-show-errors
+          +cmdstd az config set extension.use_dynamic_install=yes_without_prompt --only-show-errors
+          +cmdstd az config set core.display_survey_message=false --only-show-errors
           sp_tenant_id='${{ inputs.azure_tenant_id }}'
           sp_client_id='${{ inputs.azure_ad_client_id }}'
           sp_client_secret='${{ secrets.AZURE_AD_CLIENT_SECRET }}'
           signed_in_sp_name='${{ inputs.signed_in_sp_name }}'
-          +nostd az login --service-principal \
+          +cmdnostd az login --service-principal \
             -t $sp_tenant_id \
             -u $sp_client_id \
             -p $sp_client_secret \
@@ -490,14 +490,14 @@ jobs:
           echo "Logged in to Azure tenant ${sp_tenant_id} with ${signed_in_sp_name}"
           state_key_vault_name='${{ inputs.state_key_vault_name }}'
           if [ -n "${state_key_vault_name}" ]; then
-            new_sp_client_id=$(+noerr az keyvault secret show \
+            new_sp_client_id=$(+cmdnoerr az keyvault secret show \
               --id https://${state_key_vault_name}.vault.azure.net/secrets/sp-client-id \
               --only-show-errors \
               --query value \
               -o tsv)
             if [[ -n "${new_sp_client_id}" && "${new_sp_client_id}" != "${sp_client_id}" ]]; then
               echo "The input client id '${sp_client_id}' is different from key vault client id '${new_sp_client_id}'"
-              new_sp_client_secret=$(+noerr az keyvault secret show \
+              new_sp_client_secret=$(+cmdnoerr az keyvault secret show \
                 --id https://${state_key_vault_name}.vault.azure.net/secrets/sp-client-secret \
                 --only-show-errors \
                 --query value \
@@ -505,19 +505,19 @@ jobs:
               if [ -n "${new_sp_client_secret}" ]; then
                 echo "::add-mask::${new_sp_client_secret}"
                 if [ -z "${sp_tenant_id}" ]; then
-                  sp_tenant_id=$(+noerr az keyvault secret show \
+                  sp_tenant_id=$(+cmdnoerr az keyvault secret show \
                     --id https://${state_key_vault_name}.vault.azure.net/secrets/sp-tenant-id \
                     --only-show-errors \
                     --query value \
                     -o tsv)
                 fi
                 echo "Use secrets from key vault ${state_key_vault_name} for Azure login"
-                +nostd az login --service-principal \
+                +cmdnostd az login --service-principal \
                   -t $sp_tenant_id \
                   -u $new_sp_client_id \
                   -p $new_sp_client_secret \
                   --only-show-errors
-                signed_in_sp_name=$(+stdval az ad sp show \
+                signed_in_sp_name=$(+cmdval az ad sp show \
                   --id $new_sp_client_id \
                   --query displayName \
                   --only-show-errors \
@@ -530,9 +530,9 @@ jobs:
               fi
             fi
           fi
-          active_subscription=$(+stdval az account show --query id -o tsv)
+          active_subscription=$(+cmdval az account show --query id -o tsv)
           if [ "${active_subscription}" != '${{ inputs.state_subscription_id }}' ]; then
-            +std az account set -s ${{ inputs.state_subscription_id }} --only-show-errors
+            +cmdstd az account set -s ${{ inputs.state_subscription_id }} --only-show-errors
             echo 'Changed active subscription to ${{ inputs.state_subscription_name }} (${{ inputs.state_subscription_id }})'
           fi
           echo "ARM_TENANT_ID=${sp_tenant_id}" >> $GITHUB_ENV
@@ -562,13 +562,13 @@ jobs:
             fi
             exit $1
           }
-          +std() {
-            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+          +cmdstd() {
+            echo "${@:1:4}" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
             eval "$@" 1> >(tee -a $log_file) 2> >(tee -a $log_file >&2)
             return ${PIPESTATUS[0]}
           }
-          +noerr() {
-            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+          +cmdnoerr() {
+            echo "${@:1:4}" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
             eval "$@" 2>/dev/null || true
             return 0
           }
@@ -576,7 +576,7 @@ jobs:
           blob_list=('tfplan' 'tfplan.SHA' '.terraform.lock.hcl')
           path_list=("${start_path}" "${start_path}" "${code_path}")
           for i in "${!blob_list[@]}"; do
-            blob_exists=$(+noerr az storage blob exists \
+            blob_exists=$(+cmdnoerr az storage blob exists \
               --name \"${PLAN_FOLDER}/${blob_list[i]}\" \
               --container-name $PLAN_CONTAINER \
               --account-name $state_storage_account_name \
@@ -586,7 +586,7 @@ jobs:
               -o tsv)
             if [ "${blob_exists}" == 'true' ]; then
               echo "Download https://${state_storage_account_name}.blob.core.windows.net/${PLAN_CONTAINER}/${PLAN_FOLDER}/${blob_list[i]}"
-              +std az storage blob download \
+              +cmdstd az storage blob download \
                 --name \"${PLAN_FOLDER}/${blob_list[i]}\" \
                 --container-name $PLAN_CONTAINER \
                 --file \"${path_list[i]}/${blob_list[i]}\" \
@@ -619,19 +619,19 @@ jobs:
             fi
             exit $1
           }
-          +std() {
-            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+          +cmdstd() {
+            echo "${@:1:4}" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
             eval "$@" 1> >(tee -a $log_file) 2> >(tee -a $log_file >&2)
             return ${PIPESTATUS[0]}
           }
-          +noerr() {
-            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+          +cmdnoerr() {
+            echo "${@:1:4}" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
             eval "$@" 2>/dev/null || true
             return 0
           }
           state_storage_account_name='${{ inputs.state_storage_account_name }}'
           blob='${{ inputs.state_name }}'
-          blob_exists=$(+noerr az storage blob exists \
+          blob_exists=$(+cmdnoerr az storage blob exists \
             --name $blob \
             --container-name ${{ inputs.state_container }} \
             --account-name $state_storage_account_name \
@@ -641,7 +641,7 @@ jobs:
             -o tsv)
           if [ "${blob_exists}" == 'true' ]; then
             echo "Download https://${state_storage_account_name}.blob.core.windows.net/${{ inputs.state_container }}/${blob}"
-            +std az storage blob download \
+            +cmdstd az storage blob download \
               --name $blob \
               --container-name ${{ inputs.state_container }} \
               --file \"${start_path}/logs/${blob}.before\" \
@@ -681,23 +681,23 @@ jobs:
             fi
             exit $1
           }
-          +std() {
-            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+          +cmdstd() {
+            echo "${@:1:4}" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
             eval "$@" 1> >(tee -a $log_file) 2> >(tee -a $log_file >&2)
             return ${PIPESTATUS[0]}
           }
-          +stdval() {
-            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+          +cmdval() {
+            echo "${@:1:4}" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
             eval "$@" 2> >(tee -a $log_file >&2)
             return ${PIPESTATUS[0]}
           }
           terraform_version=$(terraform version -json | jq -r '.terraform_version')
-          account=$(+stdval az account show --only-show-errors -o json)
+          account=$(+cmdval az account show --only-show-errors -o json)
           active_subscription_id=$(echo ${account} | jq -r .id)
           if [ "${active_subscription_id}" != '${{ inputs.target_subscription_id }}' ]; then
-            +std az account set -s ${{ inputs.target_subscription_id }} --only-show-errors
+            +cmdstd az account set -s ${{ inputs.target_subscription_id }} --only-show-errors
             echo "Changed active subscription to ${{ inputs.target_subscription_name }} (${{ inputs.target_subscription_id }})"
-            account=$(+stdval az account show --only-show-errors -o json)
+            account=$(+cmdval az account show --only-show-errors -o json)
           fi
           export ARM_SUBSCRIPTION_ID="${{ inputs.target_subscription_id }}"
           echo "Target subscription:"
@@ -923,19 +923,19 @@ jobs:
             fi
             exit $1
           }
-          +std() {
-            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+          +cmdstd() {
+            echo "${@:1:4}" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
             eval "$@" 1> >(tee -a $log_file) 2> >(tee -a $log_file >&2)
             return ${PIPESTATUS[0]}
           }
-          +noerr() {
-            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+          +cmdnoerr() {
+            echo "${@:1:4}" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
             eval "$@" 2>/dev/null || true
             return 0
           }
           state_storage_account_name='${{ inputs.state_storage_account_name }}'
           blob='${{ inputs.state_name }}'
-          blob_exists=$(+noerr az storage blob exists \
+          blob_exists=$(+cmdnoerr az storage blob exists \
             --name $blob \
             --container-name ${{ inputs.state_container }} \
             --account-name $state_storage_account_name \
@@ -945,7 +945,7 @@ jobs:
             -o tsv)
           if [ "${blob_exists}" == 'true' ]; then
             echo "Download https://${state_storage_account_name}.blob.core.windows.net/${{ inputs.state_container }}/${blob}"
-            +std az storage blob download \
+            +cmdstd az storage blob download \
               --name $blob \
               --container-name ${{ inputs.state_container }} \
               --file \"${start_path}/logs/${blob}.after\" \
@@ -987,25 +987,25 @@ jobs:
             fi
             exit $1
           }
-          +std() {
-            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+          +cmdstd() {
+            echo "${@:1:4}" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
             eval "$@" 1> >(tee -a $log_file) 2> >(tee -a $log_file >&2)
             return ${PIPESTATUS[0]}
           }
-          +noerr() {
-            echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
+          +cmdnoerr() {
+            echo "${@:1:4}" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
             eval "$@" 2>/dev/null || true
             return 0
           }
           state_storage_account_name='${{ inputs.state_storage_account_name }}'
-          container_name=$(+noerr az storage container list \
+          container_name=$(+cmdnoerr az storage container list \
             --account-name $state_storage_account_name \
             --auth-mode login \
             --only-show-errors \
             --query \"[?name=='${PLAN_CONTAINER}'].[name]\" \
             -o tsv)
           if [ -z "${container_name}" ]; then
-            +std az storage container create \
+            +cmdstd az storage container create \
               --name $PLAN_CONTAINER \
               --account-name $state_storage_account_name \
               --auth-mode login \
@@ -1019,7 +1019,7 @@ jobs:
             blob='tfplan.SHA'
             if [ -f "${start_path}/${blob}" ]; then
               echo "Upload https://${state_storage_account_name}.blob.core.windows.net/${PLAN_CONTAINER}/${PLAN_FOLDER}/tfapply.SHA"
-              +std az storage blob upload \
+              +cmdstd az storage blob upload \
                 --file \"${start_path}/${blob}\" \
                 --container-name $PLAN_CONTAINER \
                 --name \"${PLAN_FOLDER}/tfapply.SHA\" \
@@ -1040,7 +1040,7 @@ jobs:
             for i in "${!blob_list[@]}"; do
               if [ -f "${path_list[i]}/${blob_list[i]}" ]; then
                 echo "Upload https://${state_storage_account_name}.blob.core.windows.net/${PLAN_CONTAINER}/${PLAN_FOLDER}/${blob_list[i]}"
-                +std az storage blob upload \
+                +cmdstd az storage blob upload \
                   --file \"${path_list[i]}/${blob_list[i]}\" \
                   --container-name $PLAN_CONTAINER \
                   --name \"${PLAN_FOLDER}/${blob_list[i]}\" \
