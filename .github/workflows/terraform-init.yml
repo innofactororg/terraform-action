@@ -229,7 +229,7 @@ jobs:
           }
           +noerr() {
             echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
-            eval "$@" 2>/dev/null || null
+            eval "$@" 2>/dev/null || true
             return 0
           }
           +nostd() {
@@ -424,7 +424,7 @@ jobs:
           }
           +noerr() {
             echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
-            eval "$@" 2>/dev/null || null
+            eval "$@" 2>/dev/null || true
             return 0
           }
           state_resource_group_name='${{ steps.find_az_state_sa.outputs.state_resource_group_name || steps.login.outputs.state_resource_group_name }}'
@@ -488,7 +488,7 @@ jobs:
           }
           +noerr() {
             echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
-            eval "$@" 2>/dev/null || null
+            eval "$@" 2>/dev/null || true
             return 0
           }
           +stdval() {
@@ -603,7 +603,7 @@ jobs:
           }
           +noerr() {
             echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
-            eval "$@" 2>/dev/null || null
+            eval "$@" 2>/dev/null || true
             return 0
           }
           +stdval() {
@@ -699,7 +699,7 @@ jobs:
           }
           +noerr() {
             echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
-            eval "$@" 2>/dev/null || null
+            eval "$@" 2>/dev/null || true
             return 0
           }
           +stdval() {
@@ -878,7 +878,7 @@ jobs:
           }
           +noerr() {
             echo "$@" | sed -e "s/^/$(date '+%Y-%m-%d %H:%M:%S') /" >>$log_file
-            eval "$@" 2>/dev/null || null
+            eval "$@" 2>/dev/null || true
             return 0
           }
           saved_plan_exist='false'
