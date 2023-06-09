@@ -152,6 +152,11 @@ on:
         required: false
         default: true
         type: boolean
+      require_approved_review_for_apply:
+        description: "Check that at least one approved review exist for the pull request."
+        required: false
+        default: true
+        type: boolean
       required_mergeable_state_for_apply:
         description: "Check that the pull request mergable state is in one of the specified states."
         required: false
@@ -290,7 +295,7 @@ jobs:
               repo: context.repo.repo,
             };
             let comment_id = isNaN('${{ github.event.comment.id }}') ? 0 : +'${{ github.event.comment.id }}';
-            let body = `## Job started ⌛\n\nCommit ${{ steps.pull_request_values.outputs.head_sha }}: a [workflow job](${run_url}) has started to evaluate`;
+            let body = `## Job started ⌛\n\nCommit ${{ steps.pull_request_values.outputs.head_sha }}: a [workflow job #${context.runNumber}](${run_url}) has started to evaluate`;
             if (context.eventName == 'issue_comment') {
               body = `${COMMENT_BODY}\n\n${body} this comment...`;
             } else {
@@ -467,6 +472,7 @@ jobs:
       require_code_owner_review_for_apply: ${{ inputs.require_code_owner_review_for_apply }}
       require_codeteams_file_for_apply: ${{ inputs.require_codeteams_file_for_apply }}
       require_code_team_review_for_apply: ${{ inputs.require_code_team_review_for_apply }}
+      require_approved_review_for_apply: ${{ inputs.require_approved_review_for_apply }}
       required_mergeable_state_for_apply: ${{ inputs.required_mergeable_state_for_apply }}
       date_time_language_format: ${{ inputs.date_time_language_format }}
       time_zone: ${{ inputs.time_zone }}
