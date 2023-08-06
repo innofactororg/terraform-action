@@ -73,7 +73,7 @@ on:
 jobs:
   terraform:
     name: 🔧 Terraform
-    uses: innofactororg/github-workflow-terraform-ops/.github/workflows/bootstrap.yml@v1
+    uses: innofactororg/terraform-action/.github/workflows/bootstrap.yml@v1
     secrets:
       # The client secret of the service principal used for azure login.
       #
@@ -184,7 +184,7 @@ jobs:
       # terraform source code or configuration files.
       #
       # Default: ''
-      library_01_repo: innofactororg/azure-csoc-analytics-rules
+      library_01_repo: innofactororg/azure-sentinel-analytics-library
 
       # The path where the repository, specified in library_01_repo
       # will be checked out to.
@@ -199,7 +199,7 @@ jobs:
       # The workflow can have up to 5 libraries (see description above).
       # For example, a second library:
       library_02_app_id: ${{ vars.GHW_TERRAFORM_APP_ID }}
-      library_02_repo: innofactororg/azure-csoc-automation-rules
+      library_02_repo: innofactororg/azure-sentinel-automation-library
       library_02_path: src/csoc/automation
 
       # Path to terraform code (`.tf` files) to be executed. To specify
@@ -338,6 +338,7 @@ optionally get the content of up to five repositories.
 1. In the left sidebar, click **Developer settings** and then **GitHub Apps**.
 1. Click **New GitHub App**.
 1. Fill inn the required information.
+   * Name: for example `TERRAFORM_ACTION`.
    * The home page URL can be set to the GitHub organization URL:
    * For example `https://github.com/organizations/innofactororg`.
 1. Uncheck the **Active** box under **Webhook**.
@@ -361,13 +362,13 @@ optionally get the content of up to five repositories.
    * Click **Secrets and variables** under **Security**.
    * Click **Actions**.
    * Add secret:
-     * Secret name: **GHW_TERRAFORM_PRIVATE_KEY**, or use the name you prefer.
+     * Secret name: **TERRAFORM_ACTION_PRIVATE_KEY**, or use the name you prefer.
      * Secret value: Use the content of the **.pem** file.
    * Add secret:
      * Secret name: **INFRACOST_API_KEY**, or use the name you prefer.
      * Secret value: Use the **API key** from <https://dashboard.infracost.io/> under **Org Settings**.
    * Click **Variables** and add variable:
-     * **GHW_TERRAFORM_APP_ID**.
+     * **TERRAFORM_ACTION_APP_ID**.
    * Add repository secret:
      * Open the repository **Settings**.
      * Click **Secrets and variables** under **Security**.
