@@ -272,7 +272,7 @@ jobs:
       - name: Get library 01 token
         id: library_01
         if: inputs.library_01_repo != '' && inputs.library_01_app_id != ''
-        uses: innofactororg/github-action-get-app-token@v1
+        uses: innofactororg/github-app-token@v1
         with:
           app_id: ${{ inputs.library_01_app_id }}
           private_key: ${{ secrets.LIBRARY_01_PRIVATE_KEY }}
@@ -306,7 +306,7 @@ jobs:
       - name: Get library 02 token
         id: library_02
         if: inputs.library_02_repo != '' && inputs.library_02_app_id != ''
-        uses: innofactororg/github-action-get-app-token@v1
+        uses: innofactororg/github-app-token@v1
         with:
           app_id: ${{ inputs.library_02_app_id }}
           private_key: ${{ secrets.LIBRARY_02_PRIVATE_KEY }}
@@ -340,7 +340,7 @@ jobs:
       - name: Get library 03 token
         id: library_03
         if: inputs.library_03_repo != '' && inputs.library_03_app_id != ''
-        uses: innofactororg/github-action-get-app-token@v1
+        uses: innofactororg/github-app-token@v1
         with:
           app_id: ${{ inputs.library_03_app_id }}
           private_key: ${{ secrets.LIBRARY_03_PRIVATE_KEY }}
@@ -374,7 +374,7 @@ jobs:
       - name: Get library 04 token
         id: library_04
         if: inputs.library_04_repo != '' && inputs.library_04_app_id != ''
-        uses: innofactororg/github-action-get-app-token@v1
+        uses: innofactororg/github-app-token@v1
         with:
           app_id: ${{ inputs.library_04_app_id }}
           private_key: ${{ secrets.LIBRARY_04_PRIVATE_KEY }}
@@ -408,7 +408,7 @@ jobs:
       - name: Get library 05 token
         id: library_05
         if: inputs.library_05_repo != '' && inputs.library_05_app_id != ''
-        uses: innofactororg/github-action-get-app-token@v1
+        uses: innofactororg/github-app-token@v1
         with:
           app_id: ${{ inputs.library_05_app_id }}
           private_key: ${{ secrets.LIBRARY_05_PRIVATE_KEY }}
