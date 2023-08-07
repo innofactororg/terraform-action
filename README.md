@@ -267,7 +267,7 @@ jobs:
       # The reviewer can't be the user who opened the pull request.
       #
       # Default: true
-      require_approved_review: true
+      require_approved_review_for_apply: true
 
       # Check that the pull request mergable state is in one of the specified states.
       #
