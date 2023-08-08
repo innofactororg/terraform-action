@@ -184,7 +184,7 @@ jobs:
       # terraform source code or configuration files.
       #
       # Default: ''
-      library_01_repo: innofactororg/azure-sentinel-analytics-library
+      library_01_repo: innofactororg/microsoft-sentinel-analytics-library
 
       # The path where the repository, specified in library_01_repo
       # will be checked out to.
@@ -199,7 +199,7 @@ jobs:
       # The workflow can have up to 5 libraries (see description above).
       # For example, a second library:
       library_02_app_id: ${{ vars.GHW_TERRAFORM_APP_ID }}
-      library_02_repo: innofactororg/azure-sentinel-automation-library
+      library_02_repo: innofactororg/microsoft-sentinel-automation-library
       library_02_path: src/csoc/automation
 
       # Path to terraform code (`.tf` files) to be executed. To specify
