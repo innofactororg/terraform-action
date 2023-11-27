@@ -756,9 +756,21 @@ jobs:
             passed_arguments=$(echo "${arguments_list[i]}")
             arguments=''
             if [ -n "${command}" ]; then
-              tf_output_file="${start_path}/logs/terraform${i}_${command}.output"
+              if [ ! -d "${start_path}/logs" ]; then
+                echo "::error file=${{ github.action }}::Folder ${start_path}/logs does not exist."
+                exit 1
+              fi
+              tf_output_file="${start_path}/logs/terraform${i}_${$}_${command}.output"
+              if [ -f "${tf_output_file}" ]; then
+                echo 'The file ${tf_output_file} exist, removing old log file'
+                rm -f ${tf_output_file}
+              fi
               touch $tf_output_file
-              tf_error_file="${start_path}/logs/terraform${i}_${command}.error"
+              tf_error_file="${start_path}/logs/terraform${i}_${$}_${command}.error"
+              if [ -f "${tf_error_file}" ]; then
+                echo 'The file ${tf_error_file} exist, removing old error file'
+                rm -f ${tf_error_file}
+              fi
               touch $tf_error_file
               echo "output file: ${tf_output_file}"
               echo "error file: ${tf_error_file}"
