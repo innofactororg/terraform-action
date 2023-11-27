@@ -749,8 +749,6 @@ jobs:
           echo '<==============<==============<==============<==============<'
           readarray -td '|' command_list <<< '${{ inputs.terraform_command }}'
           readarray -td '|' arguments_list <<< '${{ inputs.terraform_arguments }}'
-          typeset -l tf_output_file
-          typeset -l tf_error_file
           for i in "${!command_list[@]}"; do
             command=$(echo "${command_list[i]}" | xargs)
             passed_arguments=$(echo "${arguments_list[i]}")
