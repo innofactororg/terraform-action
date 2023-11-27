@@ -219,6 +219,7 @@ jobs:
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
           log_file="${start_path}/logs/steps.log"
+          touch $log_file
           trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
             if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
@@ -367,6 +368,7 @@ jobs:
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
           log_file="${start_path}/logs/steps.log"
+          touch $log_file
           trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
             if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
@@ -414,6 +416,7 @@ jobs:
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
           log_file="${start_path}/logs/steps.log"
+          touch $log_file
           trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
             if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
@@ -478,6 +481,7 @@ jobs:
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
           log_file="${start_path}/logs/steps.log"
+          touch $log_file
           trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
             if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
@@ -593,6 +597,7 @@ jobs:
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
           log_file="${start_path}/logs/steps.log"
+          touch $log_file
           trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
             if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
@@ -689,6 +694,7 @@ jobs:
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
           log_file="${start_path}/logs/steps.log"
+          touch $log_file
           trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
             if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
@@ -870,6 +876,7 @@ jobs:
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
           log_file="${start_path}/logs/steps.log"
+          touch $log_file
           trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
             if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
@@ -1004,6 +1011,7 @@ jobs:
           code_path=$(readlink -f src/${{ inputs.code_path }})
           mkdir -p ${start_path}/logs
           log_file="${start_path}/logs/steps.log"
+          touch $log_file
           trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
             if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
