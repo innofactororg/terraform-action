@@ -447,6 +447,7 @@ jobs:
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
           log_file="${start_path}/logs/steps.log"
+          touch $log_file
           trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
             if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
@@ -539,8 +540,8 @@ jobs:
           echo "ARM_CLIENT_ID=${sp_client_id}" >> $GITHUB_ENV
           echo "ARM_CLIENT_SECRET=${sp_client_secret}" >> $GITHUB_ENV
 
-      - name: Download state files
-        id: download_state
+      - name: Get terraform plan
+        id: get_terraform_plan
         if: >
           contains(inputs.terraform_command, 'apply') || (
             contains(inputs.terraform_command, 'graph') &&
@@ -553,6 +554,7 @@ jobs:
           code_path=$(readlink -f src/${{ inputs.code_path }})
           mkdir -p ${start_path}/logs
           log_file="${start_path}/logs/steps.log"
+          touch $log_file
           trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
             if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
@@ -610,6 +612,7 @@ jobs:
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
           log_file="${start_path}/logs/steps.log"
+          touch $log_file
           trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
             if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
@@ -671,7 +674,9 @@ jobs:
           code_path=$(readlink -f src/${{ inputs.code_path }})
           mkdir -p ${start_path}/logs
           debug_file="${start_path}/logs/tf_debug.log"
+          touch $debug_file
           log_file="${start_path}/logs/steps.log"
+          touch $log_file
           trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
             if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
@@ -752,7 +757,11 @@ jobs:
             arguments=''
             if [ -n "${command}" ]; then
               tf_output_file="${start_path}/logs/terraform${i}_${command}.output"
+              touch $tf_output_file
               tf_error_file="${start_path}/logs/terraform${i}_${command}.error"
+              touch $tf_error_file
+              echo "output file: ${tf_output_file}"
+              echo "error file: ${tf_error_file}"
               arg_vars=''
               if [[ "${command}" =~ (plan|import) ]]; then
                 var_path=$(readlink -f ${{ inputs.var_path }})
@@ -876,10 +885,8 @@ jobs:
               if [ -n "${arguments}" ]; then
                 echo "  ${arguments}"
               fi
-              echo "  output file: ${tf_output_file}"
-              echo "  error file: ${tf_error_file}"
               echo '>==============>==============>==============>==============>'
-              terraform ${command} ${arguments} 2> >(tee -a $tf_error_file >&2) | tee $tf_output_file
+              terraform ${command} ${arguments} 2> >(tee -a $tf_error_file >&2) | tee -a $tf_output_file
               echo '<==============<==============<==============<==============<'
               if [ -f "${tf_output_file}" ]; then
                 if [ "${command}" == 'plan' ]; then
@@ -906,14 +913,15 @@ jobs:
           find . -name "backend.*.tf" -delete || true
           find . -name "terraform.tfstate*" -delete || true
 
-      - name: Compare terraform state
-        id: terraform_state
+      - name: Check terraform state
+        id: check_terraform_state
         shell: bash
         run: |
           set -Eeu
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
           log_file="${start_path}/logs/steps.log"
+          touch $log_file
           trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
             if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
@@ -968,7 +976,7 @@ jobs:
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Upload state files
+      - name: Upload terraform state
         id: upload_state
         if: contains(fromJSON('["plan", "apply"]'), inputs.terraform_command)
         shell: bash
@@ -978,6 +986,7 @@ jobs:
           code_path=$(readlink -f src/${{ inputs.code_path }})
           mkdir -p ${start_path}/logs
           log_file="${start_path}/logs/steps.log"
+          touch $log_file
           trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
             if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
@@ -1085,6 +1094,7 @@ jobs:
           main_path=$(readlink -f main/${{ inputs.code_path }})
           mkdir -p ${start_path}/logs
           log_file="${start_path}/logs/steps.log"
+          touch $log_file
           trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
             if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
@@ -1129,6 +1139,7 @@ jobs:
           start_path=$(readlink -f .)
           mkdir -p ${start_path}/logs
           log_file="${start_path}/logs/steps.log"
+          touch $log_file
           trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
           error_handler() {
             if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
@@ -1346,7 +1357,7 @@ jobs:
               } else if (command == 'plan') {
                 plan_status = 'success';
                 body = `${body}\n\n### Terraform ${command} completed at ${tf_output_time} ✅${argument_info}${plan_url_replace}`;
-                if (command_list.indexOf('apply') > -1 && '${{ steps.terraform_state.outputs.changed }}' == 'true') {
+                if (command_list.indexOf('apply') > -1 && '${{ steps.check_terraform_state.outputs.changed }}' == 'true') {
                   new_plan_prefix = '(Stale) ';
                 }
                 body_plan = `## ${new_plan_prefix}${plan_comment_start} 🗓️\n\n${details}\n\nThis plan was generated at ${run_date} ${tf_output_time}.`;
@@ -1360,7 +1371,7 @@ jobs:
                 body = `${body}\n\n<details><summary>Show ${command} output</summary>\n\n\`\`\`hcl\n${tf_output}\n\`\`\`\n\n</details>`;
               }
             }
-            if ('${{ steps.terraform_state.outputs.changed }}' == 'true' || plan_status == 'success') {
+            if ('${{ steps.check_terraform_state.outputs.changed }}' == 'true' || plan_status == 'success') {
               try {
                 comments = await github.paginate(
                   github.rest.issues.listComments, {
@@ -1385,7 +1396,7 @@ jobs:
                 return;
               }
             }
-            if ('${{ steps.terraform_state.outputs.changed }}' == 'true' && plan_comment_id !== 0) {
+            if ('${{ steps.check_terraform_state.outputs.changed }}' == 'true' && plan_comment_id !== 0) {
               core.info(`Update title of comment ${plan_comment_id} to '(Stale) ${plan_comment_start}'`);
               const body_stale = comment.body.replace(plan_comment_start, `(Stale) ${plan_comment_start}`);
               try {
