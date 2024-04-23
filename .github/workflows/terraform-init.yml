@@ -200,7 +200,7 @@ jobs:
         if: >
           github.event_name == 'issue_comment' &&
           contains(github.event.comment.body, '/apply')
-        uses: innofactororg/check-pull-request@v1
+        uses: innofactororg/check-pull-request@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           require_codeowners_file: ${{ inputs.require_codeowners_file_for_apply }}
@@ -990,7 +990,7 @@ jobs:
             github.event_name == 'pull_request' ||
             github.event_name == 'pull_request_target'
           ) && steps.saved_plan.outputs.sha != ''
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: src
           ref: ${{ inputs.pull_request_head_ref }}
@@ -1085,7 +1085,7 @@ jobs:
 
       - name: Parse terraform command and arguments
         id: parse_command
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           result-encoding: string
@@ -1152,7 +1152,7 @@ jobs:
       - name: Comment when done
         id: comment_when_done
         if: always()
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         env:
           VERIFY_PERMISSION_MESSAGE: ${{ steps.verify_permission.outputs.message }}
         with:
@@ -1234,46 +1234,36 @@ jobs:
       - name: Upload logs
         id: upload_logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: init_logs
           path: logs/
           if-no-files-found: ignore
           retention-days: 0
 
-      - name: Dump github context
-        id: dump_github_context
+      - name: Show debug info
         if: >
-          failure() || (
+          (
             success() &&
-            !contains(
-              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
-            )
-          )
-        env:
-          GH_CONTEXT: ${{ toJson(github) }}
-        run: echo "${GH_CONTEXT}"
-
-      - name: Dump steps context
-        id: dump_steps_context
-        if: >
-          failure() || (
-            success() &&
-            !contains(
-              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
-            )
-          )
-        env:
-          STEPS_CONTEXT: ${{ toJson(steps) }}
-        run: echo "${STEPS_CONTEXT}"
-
-      - name: Print variables and event
-        id: dump_env
-        if: >
-          failure() || (
-            success() &&
-            !contains(
-              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
-            )
-          )
-        uses: hmarr/debug-action@v2
+            inputs.log_severity != 'ERROR'
+          ) || failure()
+        uses: actions/github-script@7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const event = JSON.parse(fs.readFileSync(process.env['GITHUB_EVENT_PATH']));
+            console.log('::group::environment variables');
+            console.log('::stop-commands::77e6a57ef9854574');
+            for (const [key, value] of Object.entries(process.env).sort()) {
+              if (key != 'INPUT_SCRIPT') {
+                console.log(`${key}=${value}`);
+              }
+            }
+            console.log('::77e6a57ef9854574::');
+            console.log('::endgroup::');
+            console.log('::group::github event');
+            console.log('::stop-commands::77e6a57ef9854574');
+            console.log(JSON.stringify(event, null, 2));
+            console.log('::77e6a57ef9854574::');
+            console.log('::endgroup::');

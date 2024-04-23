@@ -262,7 +262,7 @@ jobs:
     steps:
       - name: Checkout head ref (src)
         id: checkout_src
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: src
           ref: ${{ inputs.pull_request_head_ref }}
@@ -272,7 +272,7 @@ jobs:
       - name: Get library 01 token
         id: library_01
         if: inputs.library_01_repo != '' && inputs.library_01_app_id != ''
-        uses: innofactororg/github-app-token@v1
+        uses: innofactororg/github-app-token@v2
         with:
           app_id: ${{ inputs.library_01_app_id }}
           private_key: ${{ secrets.LIBRARY_01_PRIVATE_KEY }}
@@ -285,7 +285,7 @@ jobs:
       - name: Checkout library 01 (private)
         id: checkout_library_01
         if: inputs.library_01_repo != '' && steps.library_01.outputs.token != ''
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: ${{ inputs.library_01_repo }}
           path: ${{ inputs.library_01_path }}
@@ -296,7 +296,7 @@ jobs:
       - name: Checkout library 01 (public)
         id: checkout_library_01_pub
         if: inputs.library_01_repo != '' && steps.library_01.outputs.token == ''
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: ${{ inputs.library_01_repo }}
           path: ${{ inputs.library_01_path }}
@@ -306,7 +306,7 @@ jobs:
       - name: Get library 02 token
         id: library_02
         if: inputs.library_02_repo != '' && inputs.library_02_app_id != ''
-        uses: innofactororg/github-app-token@v1
+        uses: innofactororg/github-app-token@v2
         with:
           app_id: ${{ inputs.library_02_app_id }}
           private_key: ${{ secrets.LIBRARY_02_PRIVATE_KEY }}
@@ -319,7 +319,7 @@ jobs:
       - name: Checkout library 02 (private)
         id: checkout_library_02
         if: inputs.library_02_repo != '' && steps.library_02.outputs.token != ''
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: ${{ inputs.library_02_repo }}
           path: ${{ inputs.library_02_path }}
@@ -330,7 +330,7 @@ jobs:
       - name: Checkout library 02 (public)
         id: checkout_library_02_pub
         if: inputs.library_02_repo != '' && steps.library_02.outputs.token == ''
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: ${{ inputs.library_02_repo }}
           path: ${{ inputs.library_02_path }}
@@ -340,7 +340,7 @@ jobs:
       - name: Get library 03 token
         id: library_03
         if: inputs.library_03_repo != '' && inputs.library_03_app_id != ''
-        uses: innofactororg/github-app-token@v1
+        uses: innofactororg/github-app-token@v2
         with:
           app_id: ${{ inputs.library_03_app_id }}
           private_key: ${{ secrets.LIBRARY_03_PRIVATE_KEY }}
@@ -353,7 +353,7 @@ jobs:
       - name: Checkout library 03 (private)
         id: checkout_library_03
         if: inputs.library_03_repo != '' && steps.library_03.outputs.token != ''
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: ${{ inputs.library_03_repo }}
           path: ${{ inputs.library_03_path }}
@@ -364,7 +364,7 @@ jobs:
       - name: Checkout library 03 (public)
         id: checkout_library_03_pub
         if: inputs.library_03_repo != '' && steps.library_03.outputs.token == ''
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: ${{ inputs.library_03_repo }}
           path: ${{ inputs.library_03_path }}
@@ -374,7 +374,7 @@ jobs:
       - name: Get library 04 token
         id: library_04
         if: inputs.library_04_repo != '' && inputs.library_04_app_id != ''
-        uses: innofactororg/github-app-token@v1
+        uses: innofactororg/github-app-token@v2
         with:
           app_id: ${{ inputs.library_04_app_id }}
           private_key: ${{ secrets.LIBRARY_04_PRIVATE_KEY }}
@@ -387,7 +387,7 @@ jobs:
       - name: Checkout library 04 (private)
         id: checkout_library_04
         if: inputs.library_04_repo != '' && steps.library_04.outputs.token != ''
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: ${{ inputs.library_04_repo }}
           path: ${{ inputs.library_04_path }}
@@ -398,7 +398,7 @@ jobs:
       - name: Checkout library 04 (public)
         id: checkout_library_04_pub
         if: inputs.library_04_repo != '' && steps.library_04.outputs.token == ''
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: ${{ inputs.library_04_repo }}
           path: ${{ inputs.library_04_path }}
@@ -408,7 +408,7 @@ jobs:
       - name: Get library 05 token
         id: library_05
         if: inputs.library_05_repo != '' && inputs.library_05_app_id != ''
-        uses: innofactororg/github-app-token@v1
+        uses: innofactororg/github-app-token@v2
         with:
           app_id: ${{ inputs.library_05_app_id }}
           private_key: ${{ secrets.LIBRARY_05_PRIVATE_KEY }}
@@ -421,7 +421,7 @@ jobs:
       - name: Checkout library 05 (private)
         id: checkout_library_05
         if: inputs.library_05_repo != '' && steps.library_05.outputs.token != ''
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: ${{ inputs.library_05_repo }}
           path: ${{ inputs.library_05_path }}
@@ -432,7 +432,7 @@ jobs:
       - name: Checkout library 05 (public)
         id: checkout_library_05_pub
         if: inputs.library_05_repo != '' && steps.library_05.outputs.token == ''
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: ${{ inputs.library_05_repo }}
           path: ${{ inputs.library_05_path }}
@@ -1079,14 +1079,14 @@ jobs:
       - name: Setup infrastructure cost tool
         id: infracost_setup
         if: contains(inputs.terraform_command, 'plan')
-        uses: infracost/actions/setup@v2
+        uses: infracost/actions/setup@v3
         with:
           api-key: ${{ secrets.INFRACOST_API_KEY }}
 
       - name: Checkout base ref (main)
         id: checkout_base
         if: contains(inputs.terraform_command, 'plan')
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: main
           ref: ${{ inputs.pull_request_base_ref }}
@@ -1171,7 +1171,7 @@ jobs:
         id: auto_merge
         if: >
           github.event_name == 'issue_comment' && steps.terraform.outputs.applied == 'true' && contains(fromJSON('["merge", "squash", "rebase"]'), inputs.merge_method)
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -1228,7 +1228,7 @@ jobs:
       - name: Comment when done
         id: comment_when_done
         if: always()
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -1489,46 +1489,36 @@ jobs:
       - name: Upload logs
         id: upload_logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: terraform_logs
           path: logs/
           if-no-files-found: ignore
           retention-days: 0
 
-      - name: Dump github context
-        id: dump_github_context
+      - name: Show debug info
         if: >
-          failure() || (
+          (
             success() &&
-            !contains(
-              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
-            )
-          )
-        env:
-          GH_CONTEXT: ${{ toJson(github) }}
-        run: echo "${GH_CONTEXT}"
-
-      - name: Dump steps context
-        id: dump_steps_context
-        if: >
-          failure() || (
-            success() &&
-            !contains(
-              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
-            )
-          )
-        env:
-          STEPS_CONTEXT: ${{ toJson(steps) }}
-        run: echo "${STEPS_CONTEXT}"
-
-      - name: Print variables and event
-        id: dump_env
-        if: >
-          failure() || (
-            success() &&
-            !contains(
-              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
-            )
-          )
-        uses: hmarr/debug-action@v2
+            inputs.log_severity != 'ERROR'
+          ) || failure()
+        uses: actions/github-script@7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const event = JSON.parse(fs.readFileSync(process.env['GITHUB_EVENT_PATH']));
+            console.log('::group::environment variables');
+            console.log('::stop-commands::77e6a57ef9854574');
+            for (const [key, value] of Object.entries(process.env).sort()) {
+              if (key != 'INPUT_SCRIPT') {
+                console.log(`${key}=${value}`);
+              }
+            }
+            console.log('::77e6a57ef9854574::');
+            console.log('::endgroup::');
+            console.log('::group::github event');
+            console.log('::stop-commands::77e6a57ef9854574');
+            console.log(JSON.stringify(event, null, 2));
+            console.log('::77e6a57ef9854574::');
+            console.log('::endgroup::');
