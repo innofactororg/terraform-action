@@ -451,7 +451,7 @@ jobs:
               -o tsv)
             if [ "${rg_exists}" == 'true' ]; then
               echo "Found resource group ${state_resource_group_name}"
-            elif [[ '${{ github.event_name }}' == 'pull_request'* ]]; then
+            elif [[ "${GITHUB_EVENT_NAME}" == 'pull_request'* || $COMMENT_BODY == *'/plan'* ]]; then
               echo "Create resource group ${state_resource_group_name}"
               +cmdstd az group create \
                 --name $state_resource_group_name \
@@ -513,7 +513,7 @@ jobs:
             typeset -l state_storage_account_name
             state_storage_account_name=$(echo '${{ steps.az_state_rg.outputs.state_resource_group_name }}${{ inputs.level }}x${{ steps.az_state_rg.outputs.rg_random }}' | sed -E 's/[^ a-zA-Z0-9]//g' | head -c 24)
           fi
-          if [[ '${{ github.event_name }}' == 'pull_request'* ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request'* || $COMMENT_BODY == *'/plan'* ]]; then
             if [ -n '${{ steps.find_az_state_sa.outputs.state_storage_account_id }}' ]; then
               state_storage_account_id='${{ steps.find_az_state_sa.outputs.state_storage_account_id }}'
             else
@@ -628,7 +628,7 @@ jobs:
             typeset -l state_key_vault_name
             state_key_vault_name="$(echo '${{ steps.az_state_rg.outputs.state_resource_group_name }}${{ inputs.level }}x${{ steps.az_state_rg.outputs.rg_random }}' | sed -E 's/[^ a-zA-Z0-9\-]//g' | head -c 21 | sed -E 's/-+$//g')-kv"
           fi
-          if [[ '${{ github.event_name }}' == 'pull_request'* ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request'* || $COMMENT_BODY == *'/plan'* ]]; then
             if [ -n '${{ steps.login.outputs.state_key_vault_id }}' ]; then
               state_key_vault_id='${{ steps.login.outputs.state_key_vault_id }}'
             else
@@ -719,7 +719,7 @@ jobs:
             eval "$@" 2> >(tee -a $log_file >&2)
             return ${PIPESTATUS[0]}
           }
-          if [[ '${{ github.event_name }}' == 'pull_request'* ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request'* || $COMMENT_BODY == *'/plan'* ]]; then
             query="\"where type =~ 'microsoft.dataprotection/backupvaults' and name == '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' | project id\""
             if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
               echo "Run query: ${query}"
