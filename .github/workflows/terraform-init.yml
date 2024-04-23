@@ -1247,7 +1247,7 @@ jobs:
             success() &&
             inputs.log_severity != 'ERROR'
           ) || failure()
-        uses: actions/github-script@7
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |

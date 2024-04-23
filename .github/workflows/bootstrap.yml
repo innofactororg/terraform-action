@@ -243,7 +243,7 @@ jobs:
     steps:
       - name: Get pull request
         id: pull_request_values
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -284,7 +284,7 @@ jobs:
 
       - name: Comment when start
         id: comment_when_start
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -355,7 +355,7 @@ jobs:
       - name: Comment when done
         id: comment_when_done
         if: failure() || cancelled()
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -399,43 +399,6 @@ jobs:
               core.info('Comment text:');
               core.info(body);
             }
-
-      - name: Dump github context
-        id: dump_github_context
-        if: >
-          failure() || (
-            success() &&
-            !contains(
-              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
-            )
-          )
-        env:
-          GH_CONTEXT: ${{ toJson(github) }}
-        run: echo "${GH_CONTEXT}"
-
-      - name: Dump steps context
-        id: dump_steps_context
-        if: >
-          failure() || (
-            success() &&
-            !contains(
-              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
-            )
-          )
-        env:
-          STEPS_CONTEXT: ${{ toJson(steps) }}
-        run: echo "${STEPS_CONTEXT}"
-
-      - name: Print variables and event
-        id: dump_env
-        if: >
-          failure() || (
-            success() &&
-            !contains(
-              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
-            )
-          )
-        uses: hmarr/debug-action@v2
 
   init:
     name: "⏳ Init"
