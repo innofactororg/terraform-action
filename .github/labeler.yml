@@ -1,14 +1,21 @@
 ---
 area/github:
-  - ".github/**/*"
+  - changed-files:
+      - any-glob-to-any-file: .github/**/*
 area/module:
-  - "modules/**/*"
+  - changed-files:
+      - any-glob-to-any-file: modules/**/*
 area/vscode:
-  - ".vscode/**/*"
+  - changed-files:
+      - any-glob-to-any-file: .vscode/**/*
 area/tasks:
-  - ".tasks/**/*"
+  - changed-files:
+      - any-glob-to-any-file: .tasks/**/*
 area/documentation:
-  - "docs/**/*"
+  - changed-files:
+      - any-glob-to-any-file: docs/**/*
 area/definitions:
-  - "examples/**/*"
-  - "*.tf"
+  - changed-files:
+      - any-glob-to-any-file:
+          - examples/**/*
+          - "*.tf"
