@@ -35,7 +35,7 @@ jobs:
     steps:
       - name: Checkout head ref
         id: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ inputs.pull_request_head_ref }}
           fetch-depth: 0
@@ -49,13 +49,13 @@ jobs:
 
       - name: Check sarif report existence
         id: check_file
-        uses: andstor/file-existence-action@v2
+        uses: andstor/file-existence-action@v3
         with:
           files: tfsec.sarif
 
       - name: Upload tfsec sarif report to job Artifacts
         id: upload_artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: SARIF file
           path: tfsec.sarif
@@ -63,7 +63,7 @@ jobs:
 
       - name: Upload tfsec sarif report to CodeQL analysis
         id: upload_codeql
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: tfsec.sarif
           category: terraform
@@ -83,7 +83,7 @@ jobs:
       - name: Comment when done
         id: comment_when_done
         if: always()
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -127,40 +127,3 @@ jobs:
               console.log('Could not get a comment to update. Comment text:');
               console.log(body);
             }
-
-      - name: Dump github context
-        id: dump_github_context
-        if: >
-          failure() || (
-            success() &&
-            !contains(
-              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
-            )
-          )
-        env:
-          GH_CONTEXT: ${{ toJson(github) }}
-        run: echo "${GH_CONTEXT}"
-
-      - name: Dump steps context
-        id: dump_steps_context
-        if: >
-          failure() || (
-            success() &&
-            !contains(
-              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
-            )
-          )
-        env:
-          STEPS_CONTEXT: ${{ toJson(steps) }}
-        run: echo "${STEPS_CONTEXT}"
-
-      - name: Print variables and event
-        id: dump_env
-        if: >
-          failure() || (
-            success() &&
-            !contains(
-              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
-            )
-          )
-        uses: hmarr/debug-action@v2
