@@ -466,7 +466,7 @@ jobs:
                 --subscription ${{ inputs.state_subscription_id }} \
                 --only-show-errors
             else
-              echo "::error file=${{ github.action }}::Unable to find resource group ${resource_group_name}. It is required for terraform state and plan files." | tee -a $log_file
+              echo "::error file=${GITHUB_ACTION}::Unable to find resource group ${state_resource_group_name}. It is required for terraform state and plan files." | tee -a "$log_file"
               exit 1
             fi
           fi
