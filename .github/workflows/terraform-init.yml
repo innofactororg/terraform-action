@@ -200,7 +200,7 @@ jobs:
         if: >
           github.event_name == 'issue_comment' &&
           contains(github.event.comment.body, '/apply')
-        uses: innofactororg/check-pull-request@v1
+        uses: innofactororg/check-pull-request@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           require_codeowners_file: ${{ inputs.require_codeowners_file_for_apply }}
@@ -451,7 +451,7 @@ jobs:
               -o tsv)
             if [ "${rg_exists}" == 'true' ]; then
               echo "Found resource group ${state_resource_group_name}"
-            elif [[ '${{ github.event_name }}' == 'pull_request'* ]]; then
+            elif [[ "${GITHUB_EVENT_NAME}" == 'pull_request'* || $COMMENT_BODY == *'/plan'* ]]; then
               echo "Create resource group ${state_resource_group_name}"
               +cmdstd az group create \
                 --name $state_resource_group_name \
@@ -513,7 +513,7 @@ jobs:
             typeset -l state_storage_account_name
             state_storage_account_name=$(echo '${{ steps.az_state_rg.outputs.state_resource_group_name }}${{ inputs.level }}x${{ steps.az_state_rg.outputs.rg_random }}' | sed -E 's/[^ a-zA-Z0-9]//g' | head -c 24)
           fi
-          if [[ '${{ github.event_name }}' == 'pull_request'* ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request'* || $COMMENT_BODY == *'/plan'* ]]; then
             if [ -n '${{ steps.find_az_state_sa.outputs.state_storage_account_id }}' ]; then
               state_storage_account_id='${{ steps.find_az_state_sa.outputs.state_storage_account_id }}'
             else
@@ -628,7 +628,7 @@ jobs:
             typeset -l state_key_vault_name
             state_key_vault_name="$(echo '${{ steps.az_state_rg.outputs.state_resource_group_name }}${{ inputs.level }}x${{ steps.az_state_rg.outputs.rg_random }}' | sed -E 's/[^ a-zA-Z0-9\-]//g' | head -c 21 | sed -E 's/-+$//g')-kv"
           fi
-          if [[ '${{ github.event_name }}' == 'pull_request'* ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request'* || $COMMENT_BODY == *'/plan'* ]]; then
             if [ -n '${{ steps.login.outputs.state_key_vault_id }}' ]; then
               state_key_vault_id='${{ steps.login.outputs.state_key_vault_id }}'
             else
@@ -719,7 +719,7 @@ jobs:
             eval "$@" 2> >(tee -a $log_file >&2)
             return ${PIPESTATUS[0]}
           }
-          if [[ '${{ github.event_name }}' == 'pull_request'* ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request'* || $COMMENT_BODY == *'/plan'* ]]; then
             query="\"where type =~ 'microsoft.dataprotection/backupvaults' and name == '${{ steps.az_state_rg.outputs.state_resource_group_name }}-bv' | project id\""
             if [[ '${{ inputs.log_severity }}' == 'DEBUG' || '${{ inputs.log_severity }}' == 'TRACE' ]]; then
               echo "Run query: ${query}"
@@ -990,7 +990,7 @@ jobs:
             github.event_name == 'pull_request' ||
             github.event_name == 'pull_request_target'
           ) && steps.saved_plan.outputs.sha != ''
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: src
           ref: ${{ inputs.pull_request_head_ref }}
@@ -1085,7 +1085,7 @@ jobs:
 
       - name: Parse terraform command and arguments
         id: parse_command
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           result-encoding: string
@@ -1152,7 +1152,7 @@ jobs:
       - name: Comment when done
         id: comment_when_done
         if: always()
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         env:
           VERIFY_PERMISSION_MESSAGE: ${{ steps.verify_permission.outputs.message }}
         with:
@@ -1234,46 +1234,36 @@ jobs:
       - name: Upload logs
         id: upload_logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: init_logs
           path: logs/
           if-no-files-found: ignore
           retention-days: 0
 
-      - name: Dump github context
-        id: dump_github_context
+      - name: Show debug info
         if: >
-          failure() || (
+          (
             success() &&
-            !contains(
-              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
-            )
-          )
-        env:
-          GH_CONTEXT: ${{ toJson(github) }}
-        run: echo "${GH_CONTEXT}"
-
-      - name: Dump steps context
-        id: dump_steps_context
-        if: >
-          failure() || (
-            success() &&
-            !contains(
-              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
-            )
-          )
-        env:
-          STEPS_CONTEXT: ${{ toJson(steps) }}
-        run: echo "${STEPS_CONTEXT}"
-
-      - name: Print variables and event
-        id: dump_env
-        if: >
-          failure() || (
-            success() &&
-            !contains(
-              fromJSON('["ERROR", "WARN"]'), inputs.log_severity
-            )
-          )
-        uses: hmarr/debug-action@v2
+            inputs.log_severity != 'ERROR'
+          ) || failure()
+        uses: actions/github-script@7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const event = JSON.parse(fs.readFileSync(process.env['GITHUB_EVENT_PATH']));
+            console.log('::group::environment variables');
+            console.log('::stop-commands::77e6a57ef9854574');
+            for (const [key, value] of Object.entries(process.env).sort()) {
+              if (key != 'INPUT_SCRIPT') {
+                console.log(`${key}=${value}`);
+              }
+            }
+            console.log('::77e6a57ef9854574::');
+            console.log('::endgroup::');
+            console.log('::group::github event');
+            console.log('::stop-commands::77e6a57ef9854574');
+            console.log(JSON.stringify(event, null, 2));
+            console.log('::77e6a57ef9854574::');
+            console.log('::endgroup::');
