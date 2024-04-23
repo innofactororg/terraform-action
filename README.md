@@ -314,6 +314,14 @@ jobs:
       # Default: Europe/Oslo
       time_zone: Europe/Oslo
 
+      # The version of terraform to use.
+      #
+      # List of versions:
+      # https://github.com/hashicorp/terraform/releases
+      #
+      # Default: 1.7.5
+      terraform_version: 1.8.1
+
       # The log verbosity. This affect terraform log output (TF_LOG) and
       # what information is generated in the workflow job log.
       # Can be one of:
