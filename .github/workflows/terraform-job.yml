@@ -218,6 +218,10 @@ on:
         description: "The comment after terraform commands."
         required: false
         type: string
+      terraform_version:
+        description: "The version of terraform to use."
+        required: true
+        type: string
     secrets:
       AZURE_AD_CLIENT_SECRET:
         description: "The client secret of the service principal."
@@ -661,6 +665,11 @@ jobs:
             echo "Unable to find https://${state_storage_account_name}.blob.core.windows.net/${{ inputs.state_container }}/${blob}"
             echo "serial=0" >> $GITHUB_OUTPUT
           fi
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
 
       - name: Terraform
         # The output file for plan is modified using sed: all lines that begin with one
