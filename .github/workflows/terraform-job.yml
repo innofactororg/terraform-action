@@ -648,6 +648,7 @@ jobs:
             -o tsv)
           if [ "${blob_exists}" == 'true' ]; then
             echo "Download https://${state_storage_account_name}.blob.core.windows.net/${{ inputs.state_container }}/${blob}"
+            mkdir -p "$(dirname "${start_path}/logs/${blob}.before")"
             +cmdstd az storage blob download \
               --name $blob \
               --container-name ${{ inputs.state_container }} \
@@ -972,6 +973,7 @@ jobs:
             -o tsv)
           if [ "${blob_exists}" == 'true' ]; then
             echo "Download https://${state_storage_account_name}.blob.core.windows.net/${{ inputs.state_container }}/${blob}"
+            mkdir -p "$(dirname "${start_path}/logs/${blob}.after")"
             +cmdstd az storage blob download \
               --name $blob \
               --container-name ${{ inputs.state_container }} \
