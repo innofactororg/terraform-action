@@ -930,6 +930,13 @@ jobs:
           if [[ '${{ inputs.terraform_command }}' == *'apply'* ]]; then
             echo "applied=true" >> $GITHUB_OUTPUT
           fi
+          if [[ '${{ inputs.terraform_command }}' == *'plan'* ]] && [ -f "${start_path}/tfplan" ]; then
+            echo "Exporting plan JSON for infracost (providers still initialized)"
+            terraform -chdir=$code_path show -no-color -json ${start_path}/tfplan > ${start_path}/plan.json 2>&1 || {
+              echo "Warning: terraform show -json failed, infracost will fall back to directory mode"
+              rm -f ${start_path}/plan.json
+            }
+          fi
           find . -name "backend.*.tf" -delete || true
           find . -name "terraform.tfstate*" -delete || true
 
@@ -1125,11 +1132,11 @@ jobs:
             fi
             exit $1
           }
-          if [ -f "${start_path}/tfplan" ]; then
-            echo "Converting binary plan to JSON for infracost"
-            terraform -chdir=$code_path show -no-color -json ${start_path}/tfplan > ${start_path}/plan.json
+          if [ -f "${start_path}/plan.json" ] && [ -s "${start_path}/plan.json" ]; then
+            echo "Using pre-generated plan JSON for infracost ($(wc -c < ${start_path}/plan.json) bytes)"
             plan_path="${start_path}/plan.json"
           else
+            echo "No plan.json found, using code directory (infracost will init terraform)"
             plan_path="$code_path"
           fi
           if [[ -n "$(find main/ -maxdepth 1 -name "*.tf" -type f)" ]]; then
