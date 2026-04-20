@@ -846,6 +846,9 @@ jobs:
                   --datasource-id ${{ steps.az_state_sa.outputs.state_storage_account_id }} \
                   --only-show-errors)
                 echo "  ...Create instance"
+                bvi_request=$(echo "${bvi_request}" | jq \
+                  --arg container "${{ inputs.state_container }}" \
+                  '.properties.policy_info.policy_parameters = {"backup_datasource_parameters_list": [{"containers_backup_friendly_names": [$container], "object_type": "BlobBackupDatasourceParameters"}]}')
                 bvi_request=$(echo $bvi_request | sed 's/"/\\"/g')
                 +cmdstd az dataprotection backup-instance create \
                   -g ${{ steps.az_state_rg.outputs.state_resource_group_name }} \
