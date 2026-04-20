@@ -1114,37 +1114,56 @@ jobs:
       - name: Generate infrastructure cost diff
         id: infracost-diff
         if: contains(inputs.terraform_command, 'plan')
-        continue-on-error: true
         shell: bash
         run: |
-          set -x
+          set -Eeu
           start_path=$(readlink -f .)
           code_path=$(readlink -f src/${{ inputs.code_path }})
-          echo "DEBUG: start_path=$start_path code_path=$code_path"
-          echo "DEBUG: which infracost=$(which infracost 2>&1 || echo NOT_FOUND)"
-          echo "DEBUG: plan.json exists=$(ls -la ${start_path}/plan.json 2>&1 || echo MISSING)"
-          echo "DEBUG: tfplan exists=$(ls -la ${start_path}/tfplan 2>&1 || echo MISSING)"
+          main_path=$(readlink -f main/${{ inputs.code_path }})
           mkdir -p ${start_path}/logs
           log_file="${start_path}/logs/steps.log"
-          touch "$log_file"
+          touch $log_file
+          trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
+          error_handler() {
+            if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
+              msg="Error $1 at line $(expr $2 + 1) in '${{ github.action }}': $3"
+              echo "::error file=${{ github.action }},line=$(expr $2 + 1)::$msg"
+              echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >>$4
+            fi
+            exit $1
+          }
           if [ -f "${start_path}/plan.json" ] && [ -s "${start_path}/plan.json" ]; then
             echo "Using pre-generated plan JSON for infracost ($(wc -c < ${start_path}/plan.json) bytes)"
             plan_path="${start_path}/plan.json"
           else
-            echo "No plan.json found, cannot run infracost without re-init"
+            echo "::warning::plan.json not found — infracost skipped"
             exit 0
           fi
-          echo "Running: infracost breakdown --path=$plan_path"
-          infracost breakdown \
-            --log-level ${{ inputs.log_severity }} \
-            --no-color \
-            --path="$plan_path" \
-            --format=json \
-            --out-file="${start_path}/infracost.json" 2>&1 || {
-            echo "::warning::infracost breakdown failed (exit $?), skipping cost diff"
-            exit 0
-          }
-          echo "Infracost breakdown complete"
+          if [[ -n "$(find main/ -maxdepth 1 -name "*.tf" -type f)" ]]; then
+            echo "Create infracost baseline using plan in base branch (main)"
+            infracost breakdown \
+              --log-level ${{ inputs.log_severity }} \
+              --no-color \
+              --path=$main_path \
+              --format=json \
+              --out-file=$start_path/infracost-base.json
+            echo "Compare current commit with baseline from plan in base branch (main)"
+            infracost diff \
+              --log-level ${{ inputs.log_severity }} \
+              --no-color \
+              --path=$plan_path \
+              --format=json \
+              --compare-to=$start_path/infracost-base.json \
+              --out-file=$start_path/infracost.json
+          else
+            echo "Create infracost breakdown using plan from current commit"
+            infracost breakdown \
+              --log-level ${{ inputs.log_severity }} \
+              --no-color \
+              --path=$plan_path \
+              --format=json \
+              --out-file=$start_path/infracost.json
+          fi
 
       - name: Add or update infrastructure cost comment
         id: infracost_comment
