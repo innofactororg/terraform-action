@@ -1125,6 +1125,13 @@ jobs:
             fi
             exit $1
           }
+          if [ -f "${start_path}/tfplan" ]; then
+            echo "Converting binary plan to JSON for infracost"
+            terraform -chdir=$code_path show -no-color -json ${start_path}/tfplan > ${start_path}/plan.json
+            plan_path="${start_path}/plan.json"
+          else
+            plan_path="$code_path"
+          fi
           if [[ -n "$(find main/ -maxdepth 1 -name "*.tf" -type f)" ]]; then
             echo "Create infracost baseline using plan in base branch (main)"
             infracost breakdown \
@@ -1137,7 +1144,7 @@ jobs:
             infracost diff \
               --log-level ${{ inputs.log_severity }} \
               --no-color \
-              --path=$code_path \
+              --path=$plan_path \
               --format=json \
               --compare-to=$start_path/infracost-base.json \
               --out-file=$start_path/infracost.json
@@ -1146,7 +1153,7 @@ jobs:
             infracost breakdown \
               --log-level ${{ inputs.log_severity }} \
               --no-color \
-              --path=$code_path \
+              --path=$plan_path \
               --format=json \
               --out-file=$start_path/infracost.json
           fi
