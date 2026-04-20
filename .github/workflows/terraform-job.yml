@@ -932,10 +932,16 @@ jobs:
           fi
           if [[ '${{ inputs.terraform_command }}' == *'plan'* ]] && [ -f "${start_path}/tfplan" ]; then
             echo "Exporting plan JSON for infracost (providers still initialized)"
-            terraform -chdir=$code_path show -no-color -json ${start_path}/tfplan > ${start_path}/plan.json 2>&1 || {
-              echo "Warning: terraform show -json failed, infracost will fall back to directory mode"
+            tf_plan_json_stderr="${start_path}/logs/terraform_show_json.stderr.log"
+            if terraform -chdir=$code_path show -no-color -json ${start_path}/tfplan > ${start_path}/plan.json 2>"${tf_plan_json_stderr}"; then
+              if ! jq empty "${start_path}/plan.json" >/dev/null 2>&1; then
+                echo "Warning: terraform show -json produced invalid JSON, infracost will be skipped"
+                rm -f ${start_path}/plan.json
+              fi
+            else
+              echo "Warning: terraform show -json failed, infracost will be skipped"
               rm -f ${start_path}/plan.json
-            }
+            fi
           fi
           find . -name "backend.*.tf" -delete || true
           find . -name "terraform.tfstate*" -delete || true
@@ -1139,7 +1145,7 @@ jobs:
             echo "::warning::plan.json not found — infracost skipped"
             exit 0
           fi
-          if [[ -n "$(find main/ -maxdepth 1 -name "*.tf" -type f)" ]]; then
+          if [[ -n "$(find "$main_path" -maxdepth 1 -name "*.tf" -type f)" ]]; then
             echo "Create infracost baseline using plan in base branch (main)"
             infracost breakdown \
               --log-level ${{ inputs.log_severity }} \
