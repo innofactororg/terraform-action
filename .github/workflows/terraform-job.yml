@@ -784,7 +784,7 @@ jobs:
               echo "error file: ${tf_error_file}"
               arg_vars=''
               if [[ "${command}" =~ (plan|import) ]]; then
-                var_path=$(readlink -f src/${{ inputs.var_path }})
+                var_path=$(readlink -f ${start_path}/src/${{ inputs.var_path }})
                 if [ ! -d "${var_path}" ]; then
                   echo "::error file=${{ github.action }}::Folder ${var_path} does not exist."
                   exit 1
