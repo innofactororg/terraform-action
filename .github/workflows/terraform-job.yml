@@ -1124,7 +1124,7 @@ jobs:
         run: |
           set -x
           start_path=$(readlink -f .)
-          main_path=$(readlink -f main/${{ inputs.code_path }})
+          main_path="${start_path}/main/${{ inputs.code_path }}"
           mkdir -p ${start_path}/logs
           touch "${start_path}/logs/steps.log"
           if [ -f "${start_path}/plan.json" ] && [ -s "${start_path}/plan.json" ]; then
