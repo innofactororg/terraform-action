@@ -1122,22 +1122,11 @@ jobs:
         if: contains(inputs.terraform_command, 'plan')
         shell: bash
         run: |
-          set -Eeu
+          set -x
           start_path=$(readlink -f .)
-          code_path=$(readlink -f src/${{ inputs.code_path }})
           main_path=$(readlink -f main/${{ inputs.code_path }})
           mkdir -p ${start_path}/logs
-          log_file="${start_path}/logs/steps.log"
-          touch $log_file
-          trap 'error_handler $? $LINENO "$BASH_COMMAND" $log_file' ERR
-          error_handler() {
-            if [[ "$3" != 'return ${PIPESTATUS[0]}' ]]; then
-              msg="Error $1 at line $(expr $2 + 1) in '${{ github.action }}': $3"
-              echo "::error file=${{ github.action }},line=$(expr $2 + 1)::$msg"
-              echo "$(date '+%Y-%m-%d %H:%M:%S') $msg" >>$4
-            fi
-            exit $1
-          }
+          touch "${start_path}/logs/steps.log"
           if [ -f "${start_path}/plan.json" ] && [ -s "${start_path}/plan.json" ]; then
             echo "Using pre-generated plan JSON for infracost ($(wc -c < ${start_path}/plan.json) bytes)"
             plan_path="${start_path}/plan.json"
@@ -1145,30 +1134,39 @@ jobs:
             echo "::warning::plan.json not found — infracost skipped"
             exit 0
           fi
-          if [[ -d "$main_path" ]] && [[ -n "$(find "$main_path" -maxdepth 1 -name "*.tf" -type f)" ]]; then
+          if [[ -d "$main_path" ]] && [[ -n "$(find "$main_path" -maxdepth 1 -name "*.tf" -type f 2>/dev/null)" ]]; then
             echo "Create infracost baseline using plan in base branch (main)"
             infracost breakdown \
               --log-level ${{ inputs.log_severity }} \
               --no-color \
-              --path=$main_path \
+              --path="$main_path" \
               --format=json \
-              --out-file=$start_path/infracost-base.json
+              --out-file="${start_path}/infracost-base.json" 2>&1 || {
+              echo "::warning::infracost baseline failed, skipping cost diff"
+              exit 0
+            }
             echo "Compare current commit with baseline from plan in base branch (main)"
             infracost diff \
               --log-level ${{ inputs.log_severity }} \
               --no-color \
-              --path=$plan_path \
+              --path="$plan_path" \
               --format=json \
-              --compare-to=$start_path/infracost-base.json \
-              --out-file=$start_path/infracost.json
+              --compare-to="${start_path}/infracost-base.json" \
+              --out-file="${start_path}/infracost.json" 2>&1 || {
+              echo "::warning::infracost diff failed, skipping cost diff"
+              exit 0
+            }
           else
             echo "Create infracost breakdown using plan from current commit"
             infracost breakdown \
               --log-level ${{ inputs.log_severity }} \
               --no-color \
-              --path=$plan_path \
+              --path="$plan_path" \
               --format=json \
-              --out-file=$start_path/infracost.json
+              --out-file="${start_path}/infracost.json" 2>&1 || {
+              echo "::warning::infracost breakdown failed, skipping cost diff"
+              exit 0
+            }
           fi
 
       - name: Add or update infrastructure cost comment
