@@ -1122,6 +1122,7 @@ jobs:
         if: contains(inputs.terraform_command, 'plan')
         shell: bash
         run: |
+          set -Eeuo pipefail
           set -x
           start_path=$(readlink -f .)
           main_path="${start_path}/main/${{ inputs.code_path }}"
@@ -1188,6 +1189,10 @@ jobs:
             fi
             exit $1
           }
+          if [ ! -f "${start_path}/infracost.json" ]; then
+            echo "::warning::infracost.json not found — skipping cost comment"
+            exit 0
+          fi
           infracost comment github --path=$start_path/infracost.json \
             --log-level ${{ inputs.log_severity }} \
             --no-color \
