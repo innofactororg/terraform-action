@@ -124,7 +124,7 @@ on:
         default: "."
         type: string
       var_path:
-        description: "Path to the configuration files. All .tfvars files in the directory will be expanded."
+        description: "Path to the directory containing .tfvars files, relative to the repo root. Same convention as code_path. Defaults to code_path (tfvars alongside .tf files)."
         required: false
         default: "."
         type: string
