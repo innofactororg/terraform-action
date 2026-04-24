@@ -1137,15 +1137,36 @@ jobs:
           fi
           if [[ -d "$main_path" ]] && [[ -n "$(find "$main_path" -maxdepth 1 -name "*.tf" -type f 2>/dev/null)" ]]; then
             echo "Create infracost baseline using plan in base branch (main)"
-            infracost breakdown \
-              --log-level ${{ inputs.log_severity }} \
-              --no-color \
-              --path="$main_path" \
-              --format=json \
-              --out-file="${start_path}/infracost-base.json" 2>&1 || {
-              echo "::warning::infracost baseline failed, skipping cost diff"
-              exit 0
-            }
+            var_file_path="${start_path}/main/${{ inputs.var_path }}/terraform.tfvars"
+            if [[ -f "$var_file_path" ]]; then
+              cat > "${start_path}/infracost-base.yml" << EOF
+version: 0.1
+projects:
+  - path: ${main_path}
+    name: ${{ github.repository }}
+    terraform_var_files:
+      - ${var_file_path}
+EOF
+              infracost breakdown \
+                --log-level ${{ inputs.log_severity }} \
+                --no-color \
+                --config-file="${start_path}/infracost-base.yml" \
+                --format=json \
+                --out-file="${start_path}/infracost-base.json" 2>&1 || {
+                echo "::warning::infracost baseline failed, skipping cost diff"
+                exit 0
+              }
+            else
+              infracost breakdown \
+                --log-level ${{ inputs.log_severity }} \
+                --no-color \
+                --path="$main_path" \
+                --format=json \
+                --out-file="${start_path}/infracost-base.json" 2>&1 || {
+                echo "::warning::infracost baseline failed, skipping cost diff"
+                exit 0
+              }
+            fi
             echo "Compare current commit with baseline from plan in base branch (main)"
             infracost diff \
               --log-level ${{ inputs.log_severity }} \
