@@ -423,7 +423,8 @@ jobs:
       )
     needs: info
     uses: ./.github/workflows/terraform-init.yml
-    secrets: inherit
+    secrets:
+      AZURE_AD_CLIENT_SECRET: ${{ secrets.AZURE_AD_CLIENT_SECRET }}
     with:
       environment: ${{ inputs.environment }}
       level: ${{ inputs.level }}
@@ -475,7 +476,14 @@ jobs:
       needs.init.outputs.deny_reason == ''
     needs: [info, init]
     uses: ./.github/workflows/terraform-job.yml
-    secrets: inherit
+    secrets:
+      AZURE_AD_CLIENT_SECRET:  ${{ secrets.AZURE_AD_CLIENT_SECRET }}
+      INFRACOST_API_KEY:        ${{ secrets.INFRACOST_API_KEY }}
+      LIBRARY_01_PRIVATE_KEY:  ${{ secrets.LIBRARY_01_PRIVATE_KEY }}
+      LIBRARY_02_PRIVATE_KEY:  ${{ secrets.LIBRARY_02_PRIVATE_KEY }}
+      LIBRARY_03_PRIVATE_KEY:  ${{ secrets.LIBRARY_03_PRIVATE_KEY }}
+      LIBRARY_04_PRIVATE_KEY:  ${{ secrets.LIBRARY_04_PRIVATE_KEY }}
+      LIBRARY_05_PRIVATE_KEY:  ${{ secrets.LIBRARY_05_PRIVATE_KEY }}
     with:
       environment: ${{ inputs.environment }}
       level: ${{ inputs.level }}
@@ -532,7 +540,6 @@ jobs:
       github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '/scan')
     needs: info
     uses: ./.github/workflows/terraform-scan.yml
-    secrets: inherit
     with:
       log_severity: ${{ inputs.log_severity }}
       pull_request_head_ref: ${{ needs.info.outputs.head_ref }}
