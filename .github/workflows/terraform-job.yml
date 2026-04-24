@@ -1139,14 +1139,9 @@ jobs:
             echo "Create infracost baseline using plan in base branch (main)"
             var_file_path="${start_path}/main/${{ inputs.var_path }}/terraform.tfvars"
             if [[ -f "$var_file_path" ]]; then
-              cat > "${start_path}/infracost-base.yml" << EOF
-version: 0.1
-projects:
-  - path: ${main_path}
-    name: ${{ github.repository }}
-    terraform_var_files:
-      - ${var_file_path}
-EOF
+              printf 'version: 0.1\nprojects:\n  - path: %s\n    name: %s\n    terraform_var_files:\n      - %s\n' \
+                "${main_path}" "${{ github.repository }}" "${var_file_path}" \
+                > "${start_path}/infracost-base.yml"
               infracost breakdown \
                 --log-level ${{ inputs.log_severity }} \
                 --no-color \
