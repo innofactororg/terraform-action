@@ -73,7 +73,7 @@ on:
 jobs:
   terraform:
     name: 🔧 Terraform
-    uses: innofactororg/terraform-action/.github/workflows/bootstrap.yml@v1
+    uses: innofactororg/terraform-action/.github/workflows/bootstrap.yml@v1.0.9
     secrets:
       # The client secret of the service principal used for azure login.
       #
@@ -144,6 +144,9 @@ jobs:
 
       # The blob name for the terraform state file.
       # It must be tfstate or end with .tfstate.
+      # Use a subdirectory prefix to separate environments, e.g.:
+      #   test/terraform.tfstate
+      #   production/terraform.tfstate
       #
       # Default: tfstate
       state_name: tfstate
@@ -208,8 +211,11 @@ jobs:
       # Default: .
       code_path: .
 
-      # Path to the configuration files. All `.tfvars` files in the
-      # directory will be expanded.
+      # Path to the directory containing .tfvars files, relative to the
+      # repository root. Uses the same path convention as code_path.
+      # Defaults to code_path (tfvars alongside .tf files).
+      # For multi-environment repos, set this to the environment-specific
+      # subdirectory, e.g. terraform/environments/test.
       #
       # Default: .
       var_path: configuration
@@ -336,6 +342,129 @@ jobs:
       log_severity: INFO
 ```
 <!-- end usage -->
+
+## Multi-environment workflow with approval gate
+
+For repos that deploy to multiple Azure subscriptions (e.g. test then production),
+use separate `deploy-*` jobs with a manual approval gate between them. Each
+environment gets its own state file and var_path. The pattern below is ready to
+copy-paste and fill in your IDs.
+
+> **Cross-org callers:** if your IaC repo is in a different GitHub organization
+> from `innofactororg/terraform-action`, use explicit secret lists (as shown
+> below) rather than `secrets: inherit`. GitHub does not re-export inherited
+> secrets across organization boundaries.
+
+> **issue_comment trigger runs from the default branch (main):** keep
+> `.github/workflows/terraform.yml` up to date on `main` as well as on any open
+> PR branches so that `/plan` and `/apply` comments pick up the correct workflow.
+
+```yaml
+name: Terraform
+
+# PR events run from the PR branch (plan only).
+# issue_comment events always run from the default branch (main).
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths:
+      - 'terraform/**'
+  issue_comment:
+    types: [created]
+
+# Shared values (same across all environments):
+#   uses:                  innofactororg/terraform-action/.github/workflows/bootstrap.yml@v1.0.9
+#   azure_tenant_id:       <your-tenant-id>
+#   state_subscription_id: <your-state-subscription-id>
+#   state_container:       <your-state-container>
+#   state_location:        <your-state-location>
+#   code_path:             terraform
+#   terraform_version:     1.11.0
+
+jobs:
+
+  # ── Test ──────────────────────────────────────────────────────────────────
+  deploy-test:
+    name: "🔧 Terraform (test)"
+    uses: innofactororg/terraform-action/.github/workflows/bootstrap.yml@v1.0.9
+    secrets:
+      AZURE_AD_CLIENT_SECRET: ${{ secrets.AZURE_AD_CLIENT_SECRET }}
+      INFRACOST_API_KEY:       ${{ secrets.INFRACOST_API_KEY }}
+    with:
+      environment:            test
+      azure_tenant_id:        <your-tenant-id>
+      azure_ad_client_id:     ${{ vars.AZURE_AD_CLIENT_ID }}
+      state_subscription_id:  <your-state-subscription-id>
+      state_container:        <your-state-container>
+      state_name:             test/terraform.tfstate
+      state_location:         <your-state-location>
+      target_subscription_id: <your-test-subscription-id>
+      code_path:              terraform
+      var_path:               terraform/environments/test
+      terraform_version:      "1.11.0"
+      log_severity:           INFO
+
+  # Gate: manual approval required before production runs.
+  # Create the "production" environment in: Settings → Environments → New environment.
+  # Add required reviewers there to enforce human sign-off.
+  # Remove this job (and the needs: on deploy-production) to make test→production automatic.
+  gate-test-to-production:
+    name: "⏸ Approve: test → production"
+    needs: deploy-test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - run: echo "Approved for production"
+
+  # ── Production ────────────────────────────────────────────────────────────
+  deploy-production:
+    name: "🔧 Terraform (production)"
+    needs: gate-test-to-production
+    uses: innofactororg/terraform-action/.github/workflows/bootstrap.yml@v1.0.9
+    secrets:
+      AZURE_AD_CLIENT_SECRET: ${{ secrets.AZURE_AD_CLIENT_SECRET }}
+      INFRACOST_API_KEY:       ${{ secrets.INFRACOST_API_KEY }}
+    with:
+      environment:            production
+      azure_tenant_id:        <your-tenant-id>
+      azure_ad_client_id:     ${{ vars.AZURE_AD_CLIENT_ID }}
+      state_subscription_id:  <your-state-subscription-id>
+      state_container:        <your-state-container>
+      state_name:             production/terraform.tfstate
+      state_location:         <your-state-location>
+      target_subscription_id: <your-production-subscription-id>
+      code_path:              terraform
+      var_path:               terraform/environments/production
+      terraform_version:      "1.11.0"
+      log_severity:           INFO
+```
+
+### Adding or removing environments
+
+**To add an environment:**
+1. Copy a `deploy-*` block; update `environment`, `state_name`, `target_subscription_id`, and `var_path`.
+2. Add a `gate-*-to-<new>` job with `needs: deploy-<prev>` and `environment: <new>`.
+3. Add `needs: gate-*-to-<new>` to your new deploy job.
+
+**To remove an environment:**
+1. Delete the `deploy-*` block.
+2. Delete the gate job that precedes it.
+3. Remove the `needs:` reference from the following job (if any).
+
+## Infracost cost reporting
+
+Each plan run generates an infrastructure cost report posted as a PR comment.
+The workflow stores the current run's cost breakdown in blob storage alongside
+the plan, and downloads the previous run's breakdown as a baseline on the next
+run. This means:
+
+- **First plan on a new PR** — reports absolute monthly cost (no prior baseline).
+- **Subsequent plans on the same PR** — reports the delta from the last plan run,
+  giving an accurate view of cost impact even across multiple commits.
+
+The cost comment is updated in place on each plan run and remains on the PR after
+apply for audit purposes.
 
 ## Create GitHub App
 
