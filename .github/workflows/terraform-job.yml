@@ -1134,23 +1134,25 @@ jobs:
           fi
           plan_path="${start_path}/plan.json"
           echo "Using pre-generated plan JSON for infracost ($(wc -c < "${start_path}/plan.json") bytes)"
-          # Download previous infracost breakdown from blob storage (best-effort — no failure on miss)
+          # Download environment baseline from state container (keyed by state_name, best-effort)
+          # Baseline is only written after a successful apply, so it reflects what is deployed.
+          baseline_blob=$(echo '${{ inputs.state_name }}' | sed 's/\.tfstate$/-infracost.json/')
           infracost_prev=""
           if [[ -n "$state_storage_account_name" ]] && az storage blob download \
-            --name "${PLAN_FOLDER}/infracost.json" \
-            --container-name "$PLAN_CONTAINER" \
+            --name "$baseline_blob" \
+            --container-name '${{ inputs.state_container }}' \
             --file "${start_path}/infracost-prev.json" \
             --account-name "$state_storage_account_name" \
             --auth-mode login \
             --no-progress \
             --only-show-errors \
             -o none 2>/dev/null; then
-            echo "Downloaded previous infracost breakdown for baseline comparison"
+            echo "Downloaded environment infracost baseline for delta comparison"
             infracost_prev="${start_path}/infracost-prev.json"
           else
-            echo "No previous infracost baseline found — reporting absolute cost"
+            echo "No environment baseline found — reporting absolute cost"
           fi
-          # Generate absolute cost breakdown from plan (for upload and as fallback)
+          # Generate absolute cost breakdown from plan (used for diff and as fallback)
           infracost breakdown \
             --log-level ${{ inputs.log_severity }} \
             --no-color \
@@ -1160,7 +1162,7 @@ jobs:
             echo "::warning::infracost breakdown failed, skipping cost report"
             exit 0
           }
-          # Diff against previous baseline if available; otherwise use absolute
+          # Diff against environment baseline if available; otherwise report absolute cost
           if [[ -n "$infracost_prev" ]]; then
             infracost diff \
               --log-level ${{ inputs.log_severity }} \
@@ -1174,19 +1176,6 @@ jobs:
             }
           else
             cp "${start_path}/infracost-abs.json" "${start_path}/infracost.json"
-          fi
-          # Upload current absolute breakdown so future runs can diff against it
-          if [[ -n "$state_storage_account_name" ]]; then
-            az storage blob upload \
-              --file "${start_path}/infracost-abs.json" \
-              --container-name "$PLAN_CONTAINER" \
-              --name "${PLAN_FOLDER}/infracost.json" \
-              --account-name "$state_storage_account_name" \
-              --auth-mode login \
-              --no-progress \
-              --overwrite \
-              --only-show-errors \
-              -o none 2>&1 || echo "::warning::infracost upload failed — future runs will not have baseline"
           fi
 
       - name: Add or update infrastructure cost comment
@@ -1219,6 +1208,41 @@ jobs:
             --github-token='${{ secrets.GITHUB_TOKEN }}' \
             --pull-request=$PULL_REQUEST_NUMBER \
             --behavior=update
+
+      - name: Update infracost baseline
+        if: contains(inputs.terraform_command, 'apply')
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          set -x
+          start_path=$(readlink -f .)
+          state_storage_account_name='${{ inputs.state_storage_account_name }}'
+          if [ ! -f "${start_path}/plan.json" ] || [ ! -s "${start_path}/plan.json" ]; then
+            echo "::warning::plan.json not found — infracost baseline not updated"
+            exit 0
+          fi
+          baseline_blob=$(echo '${{ inputs.state_name }}' | sed 's/\.tfstate$/-infracost.json/')
+          infracost breakdown \
+            --log-level ${{ inputs.log_severity }} \
+            --no-color \
+            --path="${start_path}/plan.json" \
+            --format=json \
+            --out-file="${start_path}/infracost-baseline.json" 2>&1 || {
+            echo "::warning::infracost breakdown failed — baseline not updated"
+            exit 0
+          }
+          if [[ -n "$state_storage_account_name" ]]; then
+            az storage blob upload \
+              --file "${start_path}/infracost-baseline.json" \
+              --container-name '${{ inputs.state_container }}' \
+              --name "$baseline_blob" \
+              --account-name "$state_storage_account_name" \
+              --auth-mode login \
+              --no-progress \
+              --overwrite \
+              --only-show-errors \
+              -o none 2>&1 || echo "::warning::infracost baseline upload failed — future PRs will not have baseline"
+          fi
 
       - name: Auto merge when applied
         id: auto_merge

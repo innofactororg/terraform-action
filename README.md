@@ -455,16 +455,20 @@ jobs:
 ## Infracost cost reporting
 
 Each plan run generates an infrastructure cost report posted as a PR comment.
-The workflow stores the current run's cost breakdown in blob storage alongside
-the plan, and downloads the previous run's breakdown as a baseline on the next
-run. This means:
+The baseline is stored per-environment (keyed from `state_name`) in the same
+blob storage container as the Terraform state, and is updated only after a
+successful apply. This means:
 
-- **First plan on a new PR** — reports absolute monthly cost (no prior baseline).
-- **Subsequent plans on the same PR** — reports the delta from the last plan run,
-  giving an accurate view of cost impact even across multiple commits.
+- **First PR for an environment** — reports absolute monthly cost (no prior
+  baseline exists yet for that environment).
+- **All subsequent PRs** — reports the cost delta against what is currently
+  deployed in that environment, giving an accurate view of the cost impact of
+  the change regardless of how many PRs have been merged in between.
+- **After each successful `/apply`** — the environment baseline is updated to
+  reflect the newly deployed state, so the next PR diffs against it.
 
-The cost comment is updated in place on each plan run and remains on the PR after
-apply for audit purposes.
+The cost comment is updated in place on each plan run and remains on the PR
+after apply for audit purposes.
 
 ## Create GitHub App
 
