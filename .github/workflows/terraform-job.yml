@@ -1125,49 +1125,68 @@ jobs:
           set -Eeuo pipefail
           set -x
           start_path=$(readlink -f .)
-          main_path="${start_path}/main/${{ inputs.code_path }}"
-          mkdir -p ${start_path}/logs
+          state_storage_account_name='${{ inputs.state_storage_account_name }}'
+          mkdir -p "${start_path}/logs"
           touch "${start_path}/logs/steps.log"
-          if [ -f "${start_path}/plan.json" ] && [ -s "${start_path}/plan.json" ]; then
-            echo "Using pre-generated plan JSON for infracost ($(wc -c < ${start_path}/plan.json) bytes)"
-            plan_path="${start_path}/plan.json"
-          else
+          if [ ! -f "${start_path}/plan.json" ] || [ ! -s "${start_path}/plan.json" ]; then
             echo "::warning::plan.json not found — infracost skipped"
             exit 0
           fi
-          if [[ -d "$main_path" ]] && [[ -n "$(find "$main_path" -maxdepth 1 -name "*.tf" -type f 2>/dev/null)" ]]; then
-            echo "Create infracost baseline using plan in base branch (main)"
-            infracost breakdown \
-              --log-level ${{ inputs.log_severity }} \
-              --no-color \
-              --path="$main_path" \
-              --format=json \
-              --out-file="${start_path}/infracost-base.json" 2>&1 || {
-              echo "::warning::infracost baseline failed, skipping cost diff"
-              exit 0
-            }
-            echo "Compare current commit with baseline from plan in base branch (main)"
+          plan_path="${start_path}/plan.json"
+          echo "Using pre-generated plan JSON for infracost ($(wc -c < "${start_path}/plan.json") bytes)"
+          # Download previous infracost breakdown from blob storage (best-effort — no failure on miss)
+          infracost_prev=""
+          if [[ -n "$state_storage_account_name" ]] && az storage blob download \
+            --name "${PLAN_FOLDER}/infracost.json" \
+            --container-name "$PLAN_CONTAINER" \
+            --file "${start_path}/infracost-prev.json" \
+            --account-name "$state_storage_account_name" \
+            --auth-mode login \
+            --no-progress \
+            --only-show-errors \
+            -o none 2>/dev/null; then
+            echo "Downloaded previous infracost breakdown for baseline comparison"
+            infracost_prev="${start_path}/infracost-prev.json"
+          else
+            echo "No previous infracost baseline found — reporting absolute cost"
+          fi
+          # Generate absolute cost breakdown from plan (for upload and as fallback)
+          infracost breakdown \
+            --log-level ${{ inputs.log_severity }} \
+            --no-color \
+            --path="$plan_path" \
+            --format=json \
+            --out-file="${start_path}/infracost-abs.json" 2>&1 || {
+            echo "::warning::infracost breakdown failed, skipping cost report"
+            exit 0
+          }
+          # Diff against previous baseline if available; otherwise use absolute
+          if [[ -n "$infracost_prev" ]]; then
             infracost diff \
               --log-level ${{ inputs.log_severity }} \
               --no-color \
               --path="$plan_path" \
               --format=json \
-              --compare-to="${start_path}/infracost-base.json" \
+              --compare-to="$infracost_prev" \
               --out-file="${start_path}/infracost.json" 2>&1 || {
-              echo "::warning::infracost diff failed, skipping cost diff"
-              exit 0
+              echo "::warning::infracost diff failed, falling back to absolute cost"
+              cp "${start_path}/infracost-abs.json" "${start_path}/infracost.json"
             }
           else
-            echo "Create infracost breakdown using plan from current commit"
-            infracost breakdown \
-              --log-level ${{ inputs.log_severity }} \
-              --no-color \
-              --path="$plan_path" \
-              --format=json \
-              --out-file="${start_path}/infracost.json" 2>&1 || {
-              echo "::warning::infracost breakdown failed, skipping cost diff"
-              exit 0
-            }
+            cp "${start_path}/infracost-abs.json" "${start_path}/infracost.json"
+          fi
+          # Upload current absolute breakdown so future runs can diff against it
+          if [[ -n "$state_storage_account_name" ]]; then
+            az storage blob upload \
+              --file "${start_path}/infracost-abs.json" \
+              --container-name "$PLAN_CONTAINER" \
+              --name "${PLAN_FOLDER}/infracost.json" \
+              --account-name "$state_storage_account_name" \
+              --auth-mode login \
+              --no-progress \
+              --overwrite \
+              --only-show-errors \
+              -o none 2>&1 || echo "::warning::infracost upload failed — future runs will not have baseline"
           fi
 
       - name: Add or update infrastructure cost comment
