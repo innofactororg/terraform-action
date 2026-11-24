@@ -6,6 +6,8 @@ Each release has a `## [version] - YYYY-MM-DD` section. The Release workflow pub
 
 ## [v1.0.10] - 2026-04-27
 
+Pull request: [#17](https://github.com/innofactororg/terraform-action/pull/17).
+
 ### Fixed
 
 - **Infracost baseline scope** — the infracost baseline was previously keyed
@@ -25,6 +27,8 @@ Each release has a `## [version] - YYYY-MM-DD` section. The Release workflow pub
   deployed infrastructure, not a speculative plan.
 
 ## [v1.0.9] - 2026-04-27
+
+Pull requests: [#13](https://github.com/innofactororg/terraform-action/pull/13), [#15](https://github.com/innofactororg/terraform-action/pull/15), [#16](https://github.com/innofactororg/terraform-action/pull/16).
 
 ### Fixed
 
@@ -138,7 +142,4 @@ Each release has a `## [version] - YYYY-MM-DD` section. The Release workflow pub
 
 ## [v1.0.0] - 2023-06-06
 
-Initial public release (as `github-workflow-terraform-ops`). Single-environment reusable workflow supporting
-`/plan`, `/apply`, `/import`, `/state`, `/graph`, `/untaint`, `/scan`,
-and `/force-unlock` PR comment commands with Azure blob-backed Terraform
-state and infracost cost reporting.
+No notes were recorded for this release (originally published as `github-workflow-terraform-ops`). Commits: "Initial commit" (1f3dedc) and "Release v1" (fdabe62).
