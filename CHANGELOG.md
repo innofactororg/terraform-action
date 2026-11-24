@@ -8,7 +8,7 @@ Each release has a `## [version] - YYYY-MM-DD` section. The Release workflow pub
 
 ### Deprecated
 
-- This workflow is deprecated in favour of the Atlantis Terraform PR automation pattern (AVS `avm/ptn/lz/atlantis`). Existing tags keep working, only security fixes until the repository is archived on 2027-02-22 (#PR)
+- This workflow is deprecated in favour of the Atlantis Terraform PR automation pattern (AVS `avm/ptn/lz/atlantis`). Existing tags keep working, only security fixes until the repository is archived on 2027-02-22 ([#19](https://github.com/innofactororg/terraform-action/pull/19))
 
 ## [v1.0.10] - 2026-04-27
 
