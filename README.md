@@ -1,5 +1,16 @@
 # Terraform workflow
 
+> [!WARNING]
+> **Deprecated.** This workflow is superseded by the Atlantis Terraform pull-request automation pattern:
+> the AVS module `avm/ptn/lz/atlantis` ([documentation](https://innofactororg.github.io/azure-modules/modules/ptn-lz-atlantis/))
+> and the INFaaS "Terraform PR Automation" catalogue card (`01-Service-Catalog/solutions/terraform-pr-automation`).
+>
+> - Existing tags keep working. Callers of `@v1`, `bootstrap.yml@v1` and the pinned `v1.0.x` tags are not broken.
+> - No new features. Only security fixes are made until the repository is archived.
+> - The repository will be archived after a 90-day quiet period, on **2027-02-22**.
+>
+> See [Migrating to Atlantis](#migrating-to-atlantis).
+
 A reusable workflow to perform Terraform operations like plan and apply.
 
 This workflow is designed to trigger on either a `pull request` or a
@@ -740,6 +751,23 @@ Releases are cut from `main` with the **Release** workflow.
 Every changelog bullet references its pull request (`#n`), and a backfilled entry must trace to a real PR or commit. Release tags are immutable: never move or recreate a version tag (only the floating major tag moves), and the workflow refuses to release a tag that already exists. The release page, the tag and the changelog must agree; the workflow verifies that the release body contains the changelog section.
 
 The changelog section becomes the release notes. The workflow fails before it creates the tag if the section is missing, and it announces the release in Microsoft Teams. The floating `v1` tag is moved by hand.
+
+## Migrating to Atlantis
+
+The Atlantis pattern is a self-hosted Atlantis server (an active/standby VM pair in its own spoke VNet behind Entra sign-in), deployed with the AVS module `avm/ptn/lz/atlantis`. Its module documentation describes it as Terraform pull-request automation on **Azure DevOps**: Azure DevOps service hooks post to Atlantis, and `repoAllowlist` takes the form `dev.azure.com/<organisation>/*`. This workflow runs on GitHub Actions, so a repository that is hosted on GitHub is not covered by the module as documented. Check that before you plan a migration.
+
+| This workflow | In the Atlantis pattern |
+| :-- | :-- |
+| Plan on every pull request | Autoplan, triggered by the pull request created and source branch updated service hooks, driven by the repository's `atlantis.yaml` |
+| `/plan` and `/apply` comment commands | `atlantis plan` and `atlantis apply` comments (the pull request commented-on service hook) |
+| Require an approved review before apply | The server-side repo config (`repoConfig`, `repos.yaml`): without it, `approved` stops being an apply requirement |
+| State bootstrap (creating the state storage) | The module creates the Terraform state storage account (RBAC only, no shared keys, resource-level lock) and container; the `tfStateStorageAccountName` and `tfStateContainerName` outputs name them |
+| Locking and `/force-unlock` | Atlantis locks per project and holds them until the pull request is merged or abandoned; the status-changed service hook releases them. There is a lock UI behind Entra sign-in |
+| `/scan` security scan | Not equivalent. The module can start Atlantis with policy checks (`enablePolicyChecks`), which is a different mechanism with its own policies |
+| Infracost cost reporting | **No equivalent** in the module. If you rely on the cost delta in the pull request, keep it as a separate step |
+| `/import`, `/state`, `/graph`, `/untaint` | Not covered by the module documentation. Check the Atlantis documentation for the version you deploy before you rely on them |
+
+The method (onboarding, cutover and operations runbooks) is in the Innofactor practice repository under `ip-library/atlantis/`; read it before the first deployment. A server that replaces an existing Atlantis must carry that server's repo config.
 
 ## License
 
