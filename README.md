@@ -754,7 +754,7 @@ The changelog section becomes the release notes. The workflow fails before it cr
 
 ## Migrating to Atlantis
 
-The Atlantis pattern is a self-hosted Atlantis server (an active/standby VM pair in its own spoke VNet behind Entra sign-in), deployed with the AVS module `avm/ptn/lz/atlantis`. Its module documentation describes it as Terraform pull-request automation on **Azure DevOps**: Azure DevOps service hooks post to Atlantis, and `repoAllowlist` takes the form `dev.azure.com/<organisation>/*`. This workflow runs on GitHub Actions, so a repository that is hosted on GitHub is not covered by the module as documented. Check that before you plan a migration.
+The Atlantis pattern is a self-hosted Atlantis server (an active/standby VM pair in its own spoke VNet behind Entra sign-in), deployed with the AVS module `avm/ptn/lz/atlantis`. Its module documentation describes it as Terraform pull-request automation on **Azure DevOps**: Azure DevOps service hooks post to Atlantis, and `repoAllowlist` takes the form `dev.azure.com/<organisation>/*`. This workflow runs on GitHub Actions, so a repository that is hosted on GitHub is not covered by the module as documented. Support is tracked in [azure-verified-solutions#244](https://github.com/innofactororg/azure-verified-solutions/issues/244) ("atlantis: support GitHub-hosted repositories"). Check that before you plan a migration.
 
 | This workflow | In the Atlantis pattern |
 | :-- | :-- |
