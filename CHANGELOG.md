@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file.
 
+Each release has a `## [version] - YYYY-MM-DD` section. The Release workflow publishes that section as the release notes and announces it in Teams, and fails if the section is missing. Add the entry in the pull request that makes the change.
+
 ## [v1.0.10] - 2026-04-27
 
 ### Fixed
@@ -21,8 +23,6 @@ All notable changes to this project will be documented in this file.
   post-apply breakdown as the environment baseline. Plan runs only read the
   baseline; they no longer write it. This ensures the baseline always reflects
   deployed infrastructure, not a speculative plan.
-
----
 
 ## [v1.0.9] - 2026-04-27
 
@@ -72,13 +72,73 @@ All notable changes to this project will be documented in this file.
   to `code_path` (tfvars alongside .tf files). For multi-environment repos,
   set it to the environment-specific subdirectory.
 
----
+## [v1.0.8] - 2024-04-23
 
-## [v1] - 2024 (initial release)
+### Added
 
-Initial public release. Single-environment reusable workflow supporting
+- `terraform_version` input ([#12](https://github.com/innofactororg/terraform-action/pull/12))
+
+## [v1.0.7] - 2024-04-23
+
+### Changed
+
+- Update actions for Node 20 ([#11](https://github.com/innofactororg/terraform-action/pull/11))
+
+### Fixed
+
+- Ensure the state file is created if it does not exist on a `/plan` comment ([#10](https://github.com/innofactororg/terraform-action/pull/10))
+
+## [v1.0.6] - 2024-04-23
+
+### Fixed
+
+- Wrong name of the terraform output and error file ([#9](https://github.com/innofactororg/terraform-action/pull/9))
+- Wrong variable name for the resource group in "Establish resource group" ([#9](https://github.com/innofactororg/terraform-action/pull/9))
+
+## [v1.0.5] - 2023-11-27
+
+### Fixed
+
+- Remove `typeset -l` for path variables ([#8](https://github.com/innofactororg/terraform-action/pull/8))
+
+## [v1.0.4] - 2023-11-27
+
+### Added
+
+- More tests for terraform log files ([#7](https://github.com/innofactororg/terraform-action/pull/7))
+
+## [v1.0.3] - 2023-11-27
+
+### Fixed
+
+- Touch the log file ([#6](https://github.com/innofactororg/terraform-action/pull/6))
+
+## [v1.0.2] - 2023-08-09
+
+### Fixed
+
+- Release action, terraform-init, terraform-job and README after the repo rename ([#5](https://github.com/innofactororg/terraform-action/pull/5))
+
+### Changed
+
+- Bump size-label-action to v0.5.0 ([#5](https://github.com/innofactororg/terraform-action/pull/5))
+
+## [v1.0.1] - 2023-06-09
+
+### Added
+
+- `require_approved_review_for_apply` ([#4](https://github.com/innofactororg/github-workflow-terraform-ops/pull/4))
+- Job number in `comment_when_start` ([#4](https://github.com/innofactororg/github-workflow-terraform-ops/pull/4))
+- Exit 1 for `deny_plan` and `deny_apply` ([#4](https://github.com/innofactororg/github-workflow-terraform-ops/pull/4))
+
+### Fixed
+
+- Finding the backup vault principalId ([#1](https://github.com/innofactororg/github-workflow-terraform-ops/pull/1))
+- Improve the error logs that can be downloaded from the artifacts after a job has completed ([#4](https://github.com/innofactororg/github-workflow-terraform-ops/pull/4))
+
+## [v1.0.0] - 2023-06-06
+
+Initial public release (as `github-workflow-terraform-ops`). Single-environment reusable workflow supporting
 `/plan`, `/apply`, `/import`, `/state`, `/graph`, `/untaint`, `/scan`,
 and `/force-unlock` PR comment commands with Azure blob-backed Terraform
 state and infracost cost reporting.
-</content>
-</invoke>

@@ -730,6 +730,15 @@ Example:
 
 * `-allow-missing` - Succeed even if the resource is missing.
 
+## Releasing
+
+Releases are cut from `main` with the **Release** workflow.
+
+1. Add a section to [CHANGELOG.md](./CHANGELOG.md) in the pull request that makes the change, using the heading `## [v1.0.11] - YYYY-MM-DD`.
+2. After the pull request is merged, run the **Release** workflow (Actions tab) with the tag, for example `v1.0.11`.
+
+The changelog section becomes the release notes. The workflow fails before it creates the tag if the section is missing, and it announces the release in Microsoft Teams. The floating `v1` tag is moved by hand.
+
 ## License
 
 The scripts and documentation in this project are released under the [MIT License](LICENSE).
