@@ -10,7 +10,7 @@ Pull request: [#17](https://github.com/innofactororg/terraform-action/pull/17).
 
 ### Fixed
 
-- **Infracost baseline scope** — the infracost baseline was previously keyed
+- **Infracost baseline scope** ([#17](https://github.com/innofactororg/terraform-action/pull/17), [0c67ad6](https://github.com/innofactororg/terraform-action/commit/0c67ad6)) — the infracost baseline was previously keyed
   per-PR (`definition-plan_{repo}_PR{number}`), meaning every new PR started
   from zero and showed absolute cost rather than a cost delta. The baseline is
   now keyed per-environment, derived from `state_name` (e.g.
@@ -20,7 +20,7 @@ Pull request: [#17](https://github.com/innofactororg/terraform-action/pull/17).
 
 ### Changed
 
-- **Infracost baseline updated on apply, not on plan** — a new "Update
+- **Infracost baseline updated on apply, not on plan** ([#17](https://github.com/innofactororg/terraform-action/pull/17), [0c67ad6](https://github.com/innofactororg/terraform-action/commit/0c67ad6)) — a new "Update
   infracost baseline" step runs after a successful `apply` and uploads the
   post-apply breakdown as the environment baseline. Plan runs only read the
   baseline; they no longer write it. This ensures the baseline always reflects
@@ -32,36 +32,36 @@ Pull requests: [#13](https://github.com/innofactororg/terraform-action/pull/13),
 
 ### Fixed
 
-- **Cross-org secret passing** — replaced `secrets: inherit` in `bootstrap.yml`,
+- **Cross-org secret passing** ([#13](https://github.com/innofactororg/terraform-action/pull/13), [8102c46](https://github.com/innofactororg/terraform-action/commit/8102c46)) — replaced `secrets: inherit` in `bootstrap.yml`,
   `terraform-init.yml`, and `terraform-job.yml` with explicit secret lists.
   GitHub cannot re-export inherited secrets across organization boundaries;
   callers from outside `innofactororg` would silently receive empty secrets.
 
-- **State blob subdirectory creation** — `terraform-init.yml` now runs
+- **State blob subdirectory creation** ([#13](https://github.com/innofactororg/terraform-action/pull/13), [8102c46](https://github.com/innofactororg/terraform-action/commit/8102c46)) — `terraform-init.yml` now runs
   `mkdir -p "$(dirname ...)"` before downloading a state blob whose
   `state_name` contains a subdirectory prefix (e.g. `test/terraform.tfstate`).
 
-- **`var_path` resolution after `cd`** — the terraform step changes directory
+- **`var_path` resolution after `cd`** ([#13](https://github.com/innofactororg/terraform-action/pull/13), [8102c46](https://github.com/innofactororg/terraform-action/commit/8102c46)) — the terraform step changes directory
   to `src/<code_path>` before running. `var_path` is now resolved from the
   workspace root (`${start_path}/src/<var_path>`) so it is not accidentally
   re-rooted under the new working directory.
 
-- **`terraform show -json` stderr isolation** — plan JSON is now generated
+- **`terraform show -json` stderr isolation** ([#13](https://github.com/innofactororg/terraform-action/pull/13), [8102c46](https://github.com/innofactororg/terraform-action/commit/8102c46)) — plan JSON is now generated
   inside the terraform step (while providers are still initialized) with stderr
   redirected to a separate log file and validated with `jq empty`, preventing
   provider warnings from corrupting the JSON consumed by infracost.
 
-- **`containers_list` in backup instance policy** — `terraform-init.yml`
+- **`containers_list` in backup instance policy** ([#13](https://github.com/innofactororg/terraform-action/pull/13), [8102c46](https://github.com/innofactororg/terraform-action/commit/8102c46)) — `terraform-init.yml`
   correctly patches `containers_list` in the BlobBackupDatasourceParameters
   JSON (not the deprecated `containers_backup_friendly_names` field).
 
-- **`jq -c` + quoted echo in terraform-init.yml** — compact `jq` output and
+- **`jq -c` + quoted echo in terraform-init.yml** ([#13](https://github.com/innofactororg/terraform-action/pull/13), [8102c46](https://github.com/innofactororg/terraform-action/commit/8102c46)) — compact `jq` output and
   a properly quoted `echo` prevent newlines from being mangled in the
   `bvi_request` JSON payload.
 
 ### Changed
 
-- **Infracost: blob-storage run-to-run baseline** — the infracost step now
+- **Infracost: blob-storage run-to-run baseline** ([#15](https://github.com/innofactororg/terraform-action/pull/15), [6d4225d](https://github.com/innofactororg/terraform-action/commit/6d4225d)) — the infracost step now
   stores the absolute cost breakdown (`infracost-abs.json`) in the plan blob
   container after each plan run, and downloads the previous run's breakdown as
   the `--compare-to` baseline on the next run. This replaces the previous
@@ -71,7 +71,7 @@ Pull requests: [#13](https://github.com/innofactororg/terraform-action/pull/13),
   add/remove rows). Using `--path=plan.json` for both runs guarantees
   consistent project names and accurate deltas.
 
-- **`var_path` input description** — clarified that `var_path` is relative to
+- **`var_path` input description** ([#13](https://github.com/innofactororg/terraform-action/pull/13), [8102c46](https://github.com/innofactororg/terraform-action/commit/8102c46)) — clarified that `var_path` is relative to
   the repository root (same convention as `code_path`), and that it defaults
   to `code_path` (tfvars alongside .tf files). For multi-environment repos,
   set it to the environment-specific subdirectory.
