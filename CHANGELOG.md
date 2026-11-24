@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 Each release has a `## [version] - YYYY-MM-DD` section. The Release workflow publishes that section as the release notes and announces it in Teams, and fails if the section is missing. Add the entry in the pull request that makes the change.
 
+## Unreleased
+
+### Deprecated
+
+- This workflow is deprecated in favour of the Atlantis Terraform PR automation pattern (AVS `avm/ptn/lz/atlantis`). Existing tags keep working, only security fixes until the repository is archived on 2027-02-22 ([#19](https://github.com/innofactororg/terraform-action/pull/19))
+
 ## [v1.0.10] - 2026-04-27
 
 Pull request: [#17](https://github.com/innofactororg/terraform-action/pull/17).
